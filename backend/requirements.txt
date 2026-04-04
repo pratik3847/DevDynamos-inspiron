@@ -11,3 +11,4 @@ aiohttp
 groq
 PyJWT
 reportlab
+pyx12

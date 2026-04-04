@@ -7,6 +7,7 @@ export default function ParserEngine() {
   const { activeSession, isLoading } = useSession();
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
 
   const [segmentExplanation, setSegmentExplanation] = useState<string>('');
   const [segmentExplanationLoading, setSegmentExplanationLoading] = useState<boolean>(false);
@@ -18,18 +19,34 @@ export default function ParserEngine() {
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  if (!activeSession) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-         <FileText size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
-         <h3>No Active Session</h3>
-         <p>Please upload a file to view its parsed structure.</p>
-      </div>
-    );
-  }
+  // Theme detection
+  const isDarkMode = () => {
+    return document.documentElement.style.colorScheme !== 'light' && 
+           window.matchMedia('(prefers-color-scheme: dark)').matches;
+  };
 
-  const segments = activeSession.parsedJson?.segments || [];
-  const selectedSegment = selectedSegmentIdx !== null ? segments[selectedSegmentIdx] : null;
+  // Color palette for depth-based hierarchy coloring (works in both light and dark modes)
+  const getDepthColor = (depth: number) => {
+    const darkModeColors = [
+      '#00D6FF',    // depth 0 - bright cyan
+      '#00A8CC',    // depth 1 - medium cyan
+      '#0080A0',    // depth 2 - dark cyan
+      '#005F80',    // depth 3 - darker cyan
+    ];
+    const lightModeColors = [
+      '#0066CC',    // depth 0 - bright blue
+      '#004499',    // depth 1 - medium blue
+      '#003366',    // depth 2 - dark blue
+      '#002244',    // depth 3 - darker blue
+    ];
+    const colors = isDarkMode() ? darkModeColors : lightModeColors;
+    return colors[Math.min(depth, colors.length - 1)];
+  };
+
+  // Get text color based on theme
+  const getTextColor = () => {
+    return isDarkMode() ? '#fff' : '#000';
+  };
 
   useEffect(() => {
     const seg = selectedSegment;
@@ -59,6 +76,54 @@ export default function ParserEngine() {
       }
     })();
   }, [selectedSegmentIdx]);
+
+  // Parse raw EDI and highlight hovered element
+  const renderHighlightedRawEdi = (rawEdi: string, hoveredId: string | null) => {
+    if (!hoveredId) {
+      return <span style={{ fontFamily: 'monospace', fontSize: '1rem' }}>{rawEdi}</span>;
+    }
+
+    // Extract element index from ID (e.g., "NM101" -> element 0, "NM102" -> element 1)
+    const selectedSegment = segments[selectedSegmentIdx!];
+    const elementIndex = selectedSegment.elements?.findIndex((el: any) => el.id === hoveredId);
+    
+    if (elementIndex === undefined || elementIndex === -1) {
+      return <span style={{ fontFamily: 'monospace', fontSize: '1rem' }}>{rawEdi}</span>;
+    }
+
+    // Split by * to get parts
+    const parts = rawEdi.split('*');
+    
+    return (
+      <span style={{ fontFamily: 'monospace', fontSize: '1rem' }}>
+        {parts.map((part, idx) => (
+          <React.Fragment key={idx}>
+            {idx === elementIndex + 1 ? (
+              <span style={{ background: '#FFD700', color: '#000', fontWeight: 'bold', padding: '2px 4px', borderRadius: '2px' }}>
+                {part}
+              </span>
+            ) : (
+              part
+            )}
+            {idx < parts.length - 1 && '*'}
+          </React.Fragment>
+        ))}
+      </span>
+    );
+  };
+
+  if (!activeSession) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+         <FileText size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
+         <h3>No Active Session</h3>
+         <p>Please upload a file to view its parsed structure.</p>
+      </div>
+    );
+  }
+
+  const segments = activeSession.parsedJson?.segments || [];
+  const selectedSegment = selectedSegmentIdx !== null ? segments[selectedSegmentIdx] : null;
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -101,30 +166,54 @@ export default function ParserEngine() {
                 {segments.map((seg: any, idx: number) => {
                    const isSelected = selectedSegmentIdx === idx;
                    const nodeKey = `seg_${idx}`;
+                   const segmentDepth = 0;
+                   const segmentColor = getDepthColor(segmentDepth);
+                   const textColor = getTextColor();
 
                    return (
-                     <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                     <div key={idx} style={{ padding: '8px 0', marginLeft: '-8px', marginRight: '-8px' }}>
                         <div 
-                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isSelected ? 'rgba(0, 80, 255, 0.1)' : 'transparent', padding: '4px 8px', borderRadius: '4px', borderLeft: isSelected ? '2px solid #0050FF' : '2px solid transparent' }} 
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isSelected ? 'rgba(0, 80, 255, 0.15)' : 'transparent', padding: '6px 12px', borderRadius: '4px', borderLeft: isSelected ? `3px solid ${segmentColor}` : '3px solid transparent', transition: 'all 0.2s ease' }} 
                            onClick={() => setSelectedSegmentIdx(idx)}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => toggleNode(nodeKey, e)}>
-                            {expandedNodes[nodeKey] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                            <span style={{ color: '#00D6FF', fontWeight: 600 }}>{seg.segmentId}</span>
-                            <span style={{ color: 'var(--text-secondary)' }}>Segment</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }} onClick={(e) => toggleNode(nodeKey, e)}>
+                            {expandedNodes[nodeKey] ? <ChevronDown size={16} style={{ color: segmentColor }} /> : <ChevronRight size={16} style={{ color: segmentColor }} />}
+                            <span style={{ color: segmentColor, fontWeight: 700, fontSize: '0.95rem' }}>{seg.segmentId}</span>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Segment</span>
                           </div>
                         </div>
 
                         {expandedNodes[nodeKey] && (
-                          <div style={{ paddingLeft: '24px', marginTop: '8px' }}>
-                            {seg.elements?.map((el: any, eIdx: number) => (
-                               <div key={eIdx} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text-secondary)' }}>
-                                 <span>{el.id}</span>
-                                 <span style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                   <span style={{ color: '#fff' }}>{el.value}</span>
-                                 </span>
-                               </div>
-                            ))}
+                          <div style={{ paddingLeft: '32px', marginTop: '4px', borderLeft: `2px solid ${segmentColor}20`, paddingTop: '4px', paddingBottom: '4px' }}>
+                            {seg.elements?.map((el: any, eIdx: number) => {
+                               const elementDepth = 1;
+                               const elementColor = getDepthColor(elementDepth);
+                               const isHovered = hoveredElementId === el.id;
+                               return (
+                                 <div 
+                                   key={eIdx} 
+                                   style={{ 
+                                     display: 'flex', 
+                                     justifyContent: 'space-between', 
+                                     alignItems: 'center',
+                                     padding: '6px 10px', 
+                                     borderRadius: '3px',
+                                     background: isHovered ? `${elementColor}20` : 'transparent',
+                                     cursor: 'pointer',
+                                     transition: 'all 0.15s ease',
+                                     borderLeft: `2px solid ${isHovered ? '#FFD700' : elementColor}`,
+                                     marginBottom: '2px'
+                                   }}
+                                   onMouseEnter={() => setHoveredElementId(el.id)}
+                                   onMouseLeave={() => setHoveredElementId(null)}
+                                 >
+                                   <span style={{ color: isHovered ? '#FFD700' : elementColor, fontSize: '0.8rem', fontWeight: 600, minWidth: '50px' }}>{el.id}</span>
+                                   <span style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-end', marginRight: '8px' }}>
+                                     <span style={{ color: isHovered ? '#FFD700' : textColor, fontWeight: isHovered ? 600 : 'normal', fontSize: '0.85rem', textAlign: 'right', wordBreak: 'break-word', maxWidth: '200px' }}>{el.value || '(empty)'}</span>
+                                   </span>
+                                 </div>
+                               );
+                            })}
                           </div>
                         )}
                      </div>
@@ -159,7 +248,9 @@ export default function ParserEngine() {
               <div style={{ marginBottom: '32px' }}>
                 <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Raw EDI String</div>
                 <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '1rem', wordBreak: 'break-all' }}>{selectedSegment.raw}</span>
+                  <span style={{ flex: 1 }}>
+                    {renderHighlightedRawEdi(selectedSegment.raw, hoveredElementId)}
+                  </span>
                   <Copy size={16} color="var(--text-secondary)" style={{ cursor: 'pointer' }} />
                 </div>
               </div>
