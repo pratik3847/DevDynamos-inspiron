@@ -204,6 +204,9 @@ export default function ParserEngine() {
   const [segmentExplanationError, setSegmentExplanationError] = useState<string>('');
   const explainReqIdRef = useRef(0);
 
+  const segments = activeSession?.parsedJson?.segments || [];
+  const selectedSegment = selectedSegmentIdx !== null ? segments[selectedSegmentIdx] : null;
+
   const toggleNode = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
@@ -326,9 +329,6 @@ export default function ParserEngine() {
       </div>
     );
   }
-
-  const segments = activeSession.parsedJson?.segments || [];
-  const selectedSegment = selectedSegmentIdx !== null ? segments[selectedSegmentIdx] : null;
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', height: '100%', display: 'flex', flexDirection: 'column' }}>

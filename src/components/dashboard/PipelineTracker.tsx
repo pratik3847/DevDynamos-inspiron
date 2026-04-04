@@ -1,6 +1,5 @@
-import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, FileUp, FileText, CheckSquare, Wrench, Download } from 'lucide-react';
+import { CheckCircle2, FileUp, FileText, CheckSquare, Wrench, Download } from 'lucide-react';
 
 const STAGES = [
   { id: 'upload', label: 'Upload', icon: FileUp, path: '/dashboard/upload' },
@@ -22,15 +21,9 @@ export default function PipelineTracker() {
     }
   });
 
-  const progressPct = activeIndex >= 0 && STAGES.length > 1
-    ? (activeIndex / (STAGES.length - 1)) * 100
-    : 0;
-
   return (
     <div className="pipeline-tracker">
-      <div className="pipeline-track" style={{ ['--progress' as any]: `${progressPct}%` }}>
-        <div className="pipeline-rail"></div>
-        <div className="pipeline-rail pipeline-rail-progress"></div>
+      <div className="pipeline-track">
 
         {STAGES.map((stage, idx) => {
           const isCompleted = idx < activeIndex;

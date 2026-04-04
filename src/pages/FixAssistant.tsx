@@ -285,6 +285,7 @@ export default function FixAssistant() {
                 return (
                   <div
                     key={idx}
+                    className="fix-card"
                     style={{
                       background: 'var(--surface-2)',
                       border: '1px solid var(--surface-border-muted)',
@@ -293,18 +294,20 @@ export default function FixAssistant() {
                       marginBottom: '16px',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                        <span style={{ color: 'var(--accent-cyan)', fontWeight: 700, fontSize: '0.875rem' }}>{fix.errorId}</span>
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{fix.action || 'Auto Fix'}</span>
+                    <div className="fix-card__header">
+                      <div className="fix-card__meta">
+                        <div className="fix-card__title">
+                          <span className="fix-card__id">{fix.errorId}</span>
+                          <span className="fix-card__label">{fix.action || 'Suggested Fix'}</span>
+                        </div>
                         {linkedError?.segment ? (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          <div className="fix-card__sub">
                             Segment: {linkedError.segment}
                             {linkedError.element ? ` · ${linkedError.element}` : ''}
-                          </span>
+                          </div>
                         ) : null}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontSize: '0.875rem', fontWeight: 700 }}>
+                      <div className="fix-card__confidence">
                         <Sparkles size={14} /> {typeof fix.confidenceScore === 'number' ? `${fix.confidenceScore}%` : fix.confidence}
                       </div>
                     </div>
@@ -371,7 +374,7 @@ export default function FixAssistant() {
               <div style={{ marginTop: '8px' }}>
                 <div style={{ fontWeight: 700, margin: '12px 0 8px 0' }}>Manual Review Needed</div>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '12px' }}>
-                  These validation issues don’t have a safe auto-fix yet.
+                  These validation issues do not have a safe auto-fix yet.
                 </div>
                 {manualIssues.map((e, i) => (
                   <div
