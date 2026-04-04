@@ -213,15 +213,15 @@ export default function ParserEngine() {
   const getDepthColor = (depth: number) => {
     const darkModeColors = [
       '#00D6FF',    // depth 0 - bright cyan
-      '#00A8CC',    // depth 1 - medium cyan
-      '#0080A0',    // depth 2 - dark cyan
-      '#005F80',    // depth 3 - darker cyan
+      '#03a9ce',    // depth 1 - medium cyan
+      '#0e8fb0',    // depth 2 - dark cyan
+      '#076989',    // depth 3 - darker cyan
     ];
     const lightModeColors = [
-      '#0066CC',    // depth 0 - bright blue
+      '#0671db',    // depth 0 - bright blue
       '#004499',    // depth 1 - medium blue
       '#003366',    // depth 2 - dark blue
-      '#002244',    // depth 3 - darker blue
+      '#023b73',    // depth 3 - darker blue
     ];
     const colors = isLightTheme() ? lightModeColors : darkModeColors;
     return colors[Math.min(depth, colors.length - 1)];
@@ -304,7 +304,7 @@ export default function ParserEngine() {
         {parts.map((part, idx) => (
           <React.Fragment key={idx}>
             {idx === elementIndex + 1 ? (
-              <span style={{ background: '#3d86cf', color: '#000', fontWeight: 'bold', padding: '2px 4px', borderRadius: '2px' }}>
+              <span style={{ background: '#3c92e8', color: '#000', fontWeight: 'bold', padding: '2px 4px', borderRadius: '2px' }}>
                 {part}
               </span>
             ) : (
@@ -390,6 +390,26 @@ export default function ParserEngine() {
                               <span style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>Level {segmentDepth}</span>
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSegmentIdx(idx);
+                            }}
+                            style={{
+                              border: `1px solid ${segmentColor}88`,
+                              background: isSelected ? `${segmentColor}44` : `${segmentColor}26`,
+                              color: isLightTheme() ? '#0b2a52' : '#eaf8ff',
+                              borderRadius: '999px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '4px 10px',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Details
+                          </button>
                         </div>
 
                         {expandedNodes[nodeKey] && (

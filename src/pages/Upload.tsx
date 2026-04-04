@@ -192,7 +192,7 @@ export default function Upload() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px',
-                      background: isSelected ? 'rgba(0, 80, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                      background: isSelected ? 'rgba(97, 107, 184, 0.79)' : 'rgba(255,255,255,0.05)',
                       border: isSelected ? '1px solid rgba(0, 80, 255, 0.2)' : '1px solid transparent',
                       padding: '16px',
                       borderRadius: '12px',
