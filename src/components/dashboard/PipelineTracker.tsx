@@ -22,37 +22,28 @@ export default function PipelineTracker() {
     }
   });
 
+  const progressPct = activeIndex >= 0 && STAGES.length > 1
+    ? (activeIndex / (STAGES.length - 1)) * 100
+    : 0;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, margin: '0 40px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', width: '100%', maxWidth: '800px', justifyContent: 'space-between', position: 'relative' }}>
-        
-        {/* Background connector line */}
-        <div style={{ position: 'absolute', top: '24px', left: '10%', right: '10%', height: '2px', background: 'rgba(255,255,255,0.1)', zIndex: 0 }}></div>
-        
+    <div className="pipeline-tracker">
+      <div className="pipeline-track" style={{ ['--progress' as any]: `${progressPct}%` }}>
+        <div className="pipeline-rail"></div>
+        <div className="pipeline-rail pipeline-rail-progress"></div>
+
         {STAGES.map((stage, idx) => {
           const isCompleted = idx < activeIndex;
           const isActive = idx === activeIndex;
-          
+          const stateClass = isCompleted ? 'is-complete' : isActive ? 'is-active' : '';
+          const Icon = stage.icon;
+
           return (
-            <div key={stage.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', zIndex: 1, position: 'relative' }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '50%', 
-                background: isActive ? 'rgba(0, 80, 255, 0.1)' : 'var(--bg-card)', 
-                border: `1px solid ${isActive ? '#0050FF' : isCompleted ? '#34C759' : 'rgba(255,255,255,0.1)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: isActive ? '#0050FF' : isCompleted ? '#34C759' : 'var(--text-secondary)',
-                boxShadow: isActive ? '0 0 20px rgba(0, 80, 255, 0.2)' : 'none',
-                transition: 'all 0.3s ease'
-              }}>
-                {isCompleted ? <CheckCircle2 size={24} /> : <stage.icon size={20} />}
+            <div key={stage.id} className="pipeline-stage" aria-current={isActive ? 'step' : undefined}>
+              <div className={`pipeline-node ${stateClass}`}>
+                {isCompleted ? <CheckCircle2 size={20} /> : <Icon size={18} />}
               </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: isActive ? 600 : 500, color: isActive ? '#fff' : 'var(--text-secondary)' }}>
-                {stage.label}
-              </span>
+              <span className={`pipeline-label ${stateClass}`}>{stage.label}</span>
             </div>
           );
         })}

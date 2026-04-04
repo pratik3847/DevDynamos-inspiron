@@ -121,7 +121,6 @@ export default function DashboardLayout() {
           <PipelineTracker />
 
           <div className="dashboard-actions">
-            <button className="btn outline" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem' }}><MessageSquare size={16} /> AI Assistant</button>
             <button
               type="button"
               className="theme-toggle"
