@@ -55,6 +55,8 @@ export interface Session {
   id: string;
   filename: string;
   uploadDate: string;
+  createdAt?: string;
+  updatedAt?: string;
   status: 'Processing' | 'Requires Attention' | 'Clean' | 'Ready to Send';
   rawEdi: string;
   parsedJson: any;

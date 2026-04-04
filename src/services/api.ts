@@ -397,6 +397,8 @@ class ApiService {
           status: backendObj.status || (mappedErrors.length > 0 ? 'Requires Attention' : 'Clean'),
           filename: backendObj.fileName || backendObj.filename || 'uploaded_file.edi',
           uploadDate: backendObj.uploadDate || backendObj.updatedAt || backendObj.createdAt || new Date().toISOString(),
+          createdAt: backendObj.createdAt || backendObj.created_at,
+          updatedAt: backendObj.updatedAt || backendObj.updated_at,
           rawEdi: backendObj.rawEdi || backendObj.originalEDI || backendObj.edi_text || '',
           // Prefer modifiedJson so accepted fixes are visible in the UI
           parsedJson: backendObj.modifiedJson || backendObj.parsedJson || backendObj.parsed || {},
