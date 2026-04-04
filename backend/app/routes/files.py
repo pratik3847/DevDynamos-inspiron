@@ -16,6 +16,7 @@ except Exception:
     pipeline_fix_agent = None
 from app.utils.auth import get_current_user
 from app.utils.report_pdf import build_fix_report_pdf
+from app.utils.report_content import build_fix_report_markdown, build_fix_report_html
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -257,7 +258,7 @@ async def download_json(session_id: str, current_user: dict = Depends(get_curren
 @router.get("/session/{session_id}/download/report")
 async def download_report(
     session_id: str,
-    format: str = Query("pdf", pattern="^(pdf|json)$"),
+    format: str = Query("pdf", pattern="^(pdf|json|md|html)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """Download a detailed report of validation issues and applied fixes.
@@ -288,7 +289,14 @@ async def download_report(
 
     filename = session.get("fileName") or "file.edi"
     base = filename.rsplit(".", 1)[0]
-    out_name = f"{base}-fix-report.pdf" if format == "pdf" else f"{base}-fix-report.json"
+    if format == "pdf":
+        out_name = f"{base}-fix-report.pdf"
+    elif format == "json":
+        out_name = f"{base}-fix-report.json"
+    elif format == "md":
+        out_name = f"{base}-fix-report.md"
+    else:
+        out_name = f"{base}-fix-report.html"
 
     if format == "json":
         validation_issues = session.get("validationErrors") or []
@@ -317,6 +325,22 @@ async def download_report(
         return Response(
             content=body,
             media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename=\"{out_name}\""},
+        )
+
+    if format == "md":
+        md = build_fix_report_markdown(session=session)
+        return Response(
+            content=md,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename=\"{out_name}\""},
+        )
+
+    if format == "html":
+        html = build_fix_report_html(session=session)
+        return Response(
+            content=html,
+            media_type="text/html; charset=utf-8",
             headers={"Content-Disposition": f"attachment; filename=\"{out_name}\""},
         )
 

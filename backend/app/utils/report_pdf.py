@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -44,6 +44,144 @@ def _compact_text(s: Any, max_len: int = 240) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
+def _first_non_empty(*values: Any) -> str:
+    for v in values:
+        s = _safe_str(v).strip()
+        if s:
+            return s
+    return ""
+
+
+def _normalize_issue(err: Dict[str, Any]) -> Dict[str, str]:
+    issue_id = _first_non_empty(err.get("id"), err.get("rule_id"), err.get("code"), "-")
+    severity = _first_non_empty(err.get("severity"), "-").upper()
+    layer = _first_non_empty(err.get("layer"), "-").upper()
+    segment = _first_non_empty(err.get("segment"), "-").upper()
+    element = _first_non_empty(err.get("field"), err.get("element"), "-").upper()
+    desc = _first_non_empty(err.get("message"), err.get("error"), err.get("description"), "-")
+    value = _first_non_empty(err.get("value"), "")
+    return {
+        "id": issue_id,
+        "severity": severity,
+        "layer": layer,
+        "segment": segment,
+        "element": element,
+        "description": desc,
+        "value": value,
+    }
+
+
+def _group_issues_by_layer(issues: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, str]]]:
+    out: Dict[str, List[Dict[str, str]]] = {
+        "STRUCTURAL": [],
+        "BUSINESS": [],
+        "EXTERNAL": [],
+        "OTHER": [],
+    }
+    for e in issues or []:
+        if not isinstance(e, dict):
+            continue
+        n = _normalize_issue(e)
+        layer = (n.get("layer") or "").upper()
+        if layer in out:
+            out[layer].append(n)
+        else:
+            out["OTHER"].append(n)
+    return out
+
+
+def _classify_fix(f: Dict[str, Any]) -> str:
+    fix_type = _safe_str(f.get("fix_type") or f.get("type") or "").upper()
+    auto_apply = f.get("auto_apply")
+    confidence = f.get("confidence")
+
+    if auto_apply is True or "DETERMIN" in fix_type:
+        return "auto"
+    if "MANUAL" in fix_type:
+        return "manual"
+    try:
+        if confidence is not None and float(confidence) <= 0:
+            return "manual"
+    except Exception:
+        pass
+    return "ai"
+
+
+def _transaction_type_from_session(session: Dict[str, Any]) -> str:
+    tx = _first_non_empty(
+        session.get("transactionType"),
+        session.get("transaction_type"),
+        session.get("transaction"),
+        (session.get("parsedJson") or {}).get("transactionType") if isinstance(session.get("parsedJson"), dict) else "",
+    )
+    txu = tx.upper().strip()
+    if txu.startswith("837"):
+        return "837"
+    if txu.startswith("835"):
+        return "835"
+    if txu.startswith("834"):
+        return "834"
+    return txu or "-"
+
+
+def _derive_overall_status(session: Dict[str, Any]) -> str:
+    current_issues = session.get("validationErrors") or []
+    corrected = _safe_str(session.get("correctedEdi") or "").strip()
+    if not current_issues and corrected:
+        return "Corrected"
+    if not current_issues:
+        return "Valid"
+    return "Requires Attention"
+
+
+def _count_errors_warnings(issues: List[Dict[str, str]]) -> Tuple[int, int]:
+    errors = 0
+    warnings = 0
+    for e in issues:
+        sev = (e.get("severity") or "").upper()
+        if sev in {"WARNING", "INFO"}:
+            warnings += 1
+        else:
+            errors += 1
+    return errors, warnings
+
+
+def _edi_segments(edi_text: str) -> List[str]:
+    body = _safe_str(edi_text).replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not body:
+        return []
+    parts = [p.strip() for p in body.split("~")]
+    return [p for p in parts if p]
+
+
+def _edi_diff_lines(raw_edi: str, corrected_edi: str, *, max_lines: int = 260) -> List[str]:
+    raw = _edi_segments(raw_edi)
+    cor = _edi_segments(corrected_edi)
+    if not cor and not raw:
+        return ["(No EDI content available)"]
+    if not cor:
+        lines = [s + "~" for s in raw]
+        if len(lines) > max_lines:
+            lines = lines[:max_lines] + ["… (truncated)"]
+        return lines
+
+    out: List[str] = []
+    n = min(len(raw), len(cor))
+    for i in range(n):
+        if raw[i] == cor[i]:
+            out.append("  " + cor[i] + "~")
+        else:
+            out.append("+ " + cor[i] + "~")
+            out.append("- " + raw[i] + "~")
+    for i in range(n, len(cor)):
+        out.append("+ " + cor[i] + "~")
+    for i in range(n, len(raw)):
+        out.append("- " + raw[i] + "~")
+    if len(out) > max_lines:
+        out = out[:max_lines] + ["… (truncated)"]
+    return out
+
+
 def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
     """Render a professional PDF report for a session.
 
@@ -55,8 +193,9 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
     """
 
     filename = _safe_str(session.get("fileName") or session.get("filename") or "file.edi")
-    status = _safe_str(session.get("status") or "")
     session_id = _safe_str(session.get("_id") or session.get("id") or "")
+    tx_type = _transaction_type_from_session(session)
+    overall_status = _derive_overall_status(session)
 
     validation_issues: List[Dict[str, Any]] = session.get("validationErrors") or []
     original_issues: List[Dict[str, Any]] = session.get("originalValidationErrors") or validation_issues
@@ -74,7 +213,7 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         rightMargin=0.7 * inch,
         topMargin=0.75 * inch,
         bottomMargin=0.75 * inch,
-        title="Validation + Fix Report",
+        title="EDI Validation & Auto-Fix Report",
         author="EDI Assistant",
     )
 
@@ -101,29 +240,41 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
     )
 
     story = []
-    story.append(Paragraph("Validation + Auto-Fix Report", title_style))
+    story.append(Paragraph("EDI Validation & Auto-Fix Report", title_style))
     story.append(Spacer(1, 6))
-    story.append(
-        Paragraph(
-            f"Generated: {_safe_str(datetime.utcnow().isoformat())}",
-            meta_style,
-        )
-    )
+    story.append(Paragraph(f"Timestamp (UTC): {_safe_str(datetime.utcnow().isoformat())}", meta_style))
     story.append(Paragraph(f"Session ID: {session_id}", meta_style))
-    story.append(Paragraph(f"File: {filename}", meta_style))
-    if status:
-        story.append(Paragraph(f"Status: {status}", meta_style))
+    story.append(Paragraph(f"File Name: {filename}", meta_style))
+    story.append(Paragraph(f"Transaction Type: {tx_type}", meta_style))
+    story.append(Paragraph(f"Overall Status: {overall_status}", meta_style))
     story.append(Spacer(1, 14))
 
-    # Summary table
-    story.append(Paragraph("Summary", h_style))
-    summary_data = [
-        ["Uploaded-file issues", str(len(original_issues))],
-        ["Current validation issues", str(len(validation_issues))],
-        ["Auto-fix suggestions", str(len(fix_suggestions))],
-        ["Changes applied", str(len(changes_log))],
+    # 2. Executive Summary
+    story.append(Paragraph("Executive Summary", h_style))
+    orig_norm = [_normalize_issue(e) for e in original_issues if isinstance(e, dict)]
+    err_count, warn_count = _count_errors_warnings(orig_norm)
+
+    classified = {"auto": [], "ai": [], "manual": []}
+    for f in fix_suggestions or []:
+        if not isinstance(f, dict):
+            continue
+        classified[_classify_fix(f)].append(f)
+
+    auto_applied = [
+        f for f in classified["auto"]
+        if isinstance(f, dict) and _safe_str(f.get("status")).lower() == "accepted"
     ]
-    summary_table = Table(summary_data, colWidths=[3.4 * inch, 2.2 * inch])
+
+    summary_data = [
+        ["Total issues detected (uploaded file)", str(len(orig_norm))],
+        ["Errors", str(err_count)],
+        ["Warnings", str(warn_count)],
+        ["Auto-fixed issues (applied)", str(len(auto_applied))],
+        ["AI-suggested fixes (approval required)", str(len(classified["ai"]))],
+        ["Manual review required", str(len(classified["manual"]))],
+        ["Final status", overall_status],
+    ]
+    summary_table = Table(summary_data, colWidths=[3.7 * inch, 1.9 * inch])
     summary_table.setStyle(
         TableStyle(
             [
@@ -143,33 +294,44 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
     )
     story.append(summary_table)
 
-    # Issues (Uploaded-file)
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Uploaded-file Validation Issues", h_style))
-
-    if not original_issues:
-        story.append(Paragraph("No validation issues found.", small_style))
+    story.append(Spacer(1, 10))
+    if overall_status == "Corrected":
+        story.append(Paragraph("Final status: Corrected output produced and no remaining validation issues.", small_style))
+    elif overall_status == "Valid":
+        story.append(Paragraph("Final status: No validation issues were detected.", small_style))
     else:
-        issues_rows = [["ID", "Severity", "Segment", "Element", "Message"]]
-        for err in original_issues[:250]:
-            if not isinstance(err, dict):
-                continue
-            issues_rows.append(
+        story.append(Paragraph("Final status: Remaining issues require attention before the EDI can be considered compliant.", small_style))
+
+    # 3. Validation Results (grouped)
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Validation Results", h_style))
+
+    grouped = _group_issues_by_layer(original_issues)
+
+    def _issues_table(title: str, items: List[Dict[str, str]]):
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(title, h_style))
+        if not items:
+            story.append(Paragraph("No issues found.", small_style))
+            return
+        rows = [["ID", "Severity", "Layer", "Segment", "Element", "Description"]]
+        for it in items[:250]:
+            rows.append(
                 [
-                    _compact_text(err.get("id"), 40),
-                    _compact_text(err.get("severity"), 16),
-                    _compact_text(err.get("segment"), 10),
-                    _compact_text(err.get("field") or err.get("element"), 10),
-                    _compact_text(err.get("message") or err.get("error") or err.get("description"), 120),
+                    _compact_text(it.get("id"), 30),
+                    _compact_text(it.get("severity"), 10),
+                    _compact_text(it.get("layer"), 12),
+                    _compact_text(it.get("segment"), 8),
+                    _compact_text(it.get("element"), 8),
+                    _compact_text(it.get("description"), 120),
                 ]
             )
-
-        issues_table = Table(
-            issues_rows,
-            colWidths=[1.25 * inch, 0.75 * inch, 0.65 * inch, 0.65 * inch, 2.6 * inch],
+        tbl = Table(
+            rows,
+            colWidths=[0.9 * inch, 0.7 * inch, 0.75 * inch, 0.6 * inch, 0.7 * inch, 2.85 * inch],
             repeatRows=1,
         )
-        issues_table.setStyle(
+        tbl.setStyle(
             TableStyle(
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
@@ -186,126 +348,201 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
                 ]
             )
         )
-        story.append(issues_table)
-
-        if len(original_issues) > 250:
+        story.append(tbl)
+        if len(items) > 250:
             story.append(Spacer(1, 6))
-            story.append(Paragraph(f"(Truncated to first 250 issues)", meta_style))
+            story.append(Paragraph("(Truncated to first 250 issues)", meta_style))
 
-    # Issues (Current)
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Current Validation Issues (After Fixes)", h_style))
-
-    if not validation_issues:
-        story.append(Paragraph("No current validation issues found.", small_style))
-    else:
-        issues_rows2 = [["ID", "Severity", "Segment", "Element", "Message"]]
-        for err in validation_issues[:250]:
-            if not isinstance(err, dict):
-                continue
-            issues_rows2.append(
-                [
-                    _compact_text(err.get("id"), 40),
-                    _compact_text(err.get("severity"), 16),
-                    _compact_text(err.get("segment"), 10),
-                    _compact_text(err.get("field") or err.get("element"), 10),
-                    _compact_text(err.get("message") or err.get("error") or err.get("description"), 120),
-                ]
-            )
-
-        issues_table2 = Table(
-            issues_rows2,
-            colWidths=[1.25 * inch, 0.75 * inch, 0.65 * inch, 0.65 * inch, 2.6 * inch],
-            repeatRows=1,
-        )
-        issues_table2.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 9),
-                    ("FONTSIZE", (0, 1), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
-        story.append(issues_table2)
-
-        if len(validation_issues) > 250:
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(f"(Truncated to first 250 issues)", meta_style))
+    _issues_table("Structural Issues", grouped.get("STRUCTURAL") or [])
+    _issues_table("Business Rule Issues", grouped.get("BUSINESS") or [])
+    _issues_table("External Validation Issues", grouped.get("EXTERNAL") or [])
+    if grouped.get("OTHER"):
+        _issues_table("Other Issues", grouped.get("OTHER") or [])
 
     story.append(PageBreak())
 
-    # Fix suggestions
-    story.append(Paragraph("Fix Suggestions", h_style))
+    # 4. Fix Classification Summary
+    story.append(Paragraph("Fix Classification Summary", h_style))
     if not fix_suggestions:
-        story.append(Paragraph("No auto-fix suggestions available.", small_style))
+        story.append(Paragraph("No fix suggestions available.", small_style))
     else:
-        fixes_rows = [["Fix ID", "Type", "Confidence", "Auto", "Linked Error", "Target", "Suggested", "Status"]]
-        for f in fix_suggestions[:250]:
-            if not isinstance(f, dict):
-                continue
-            target = f"{_safe_str(f.get('segmentId') or f.get('segment'))} · {_safe_str(f.get('elementId') or f.get('element') or f.get('field'))}"
-            fixes_rows.append(
-                [
-                    _compact_text(f.get("id"), 32),
-                    _compact_text(f.get("fix_type"), 16),
-                    _compact_text(f.get("confidence"), 8),
-                    _compact_text(f.get("auto_apply"), 5),
-                    _compact_text(f.get("errorId"), 40),
-                    _compact_text(target, 40),
-                    _compact_text(f.get("suggested"), 40),
-                    _compact_text(f.get("status"), 12),
-                ]
-            )
+        auto_fixes = [f for f in fix_suggestions if isinstance(f, dict) and _classify_fix(f) == "auto"]
+        ai_fixes = [f for f in fix_suggestions if isinstance(f, dict) and _classify_fix(f) == "ai"]
+        manual_fixes = [f for f in fix_suggestions if isinstance(f, dict) and _classify_fix(f) == "manual"]
 
-        fixes_table = Table(
-            fixes_rows,
-            colWidths=[0.7 * inch, 0.8 * inch, 0.7 * inch, 0.45 * inch, 1.0 * inch, 0.85 * inch, 1.05 * inch, 0.55 * inch],
-            repeatRows=1,
-        )
-        fixes_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 9),
-                    ("FONTSIZE", (0, 1), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Automatically Applied Fixes", h_style))
+        if not auto_fixes:
+            story.append(Paragraph("No deterministic fixes available.", small_style))
+        else:
+            rows = [["Fix ID", "Target", "Before", "After", "Status"]]
+            for f in auto_fixes[:200]:
+                target = f"{_safe_str(f.get('segmentId') or f.get('segment'))} · {_safe_str(f.get('elementId') or f.get('element') or f.get('field'))}"
+                rows.append(
+                    [
+                        _compact_text(f.get("id"), 30),
+                        _compact_text(target, 26),
+                        _compact_text(f.get("original"), 22),
+                        _compact_text(f.get("suggested"), 22),
+                        _compact_text(f.get("status"), 10),
+                    ]
+                )
+            tbl = Table(rows, colWidths=[0.9 * inch, 1.5 * inch, 1.2 * inch, 1.2 * inch, 0.8 * inch], repeatRows=1)
+            tbl.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
             )
-        )
-        story.append(fixes_table)
-        if len(fix_suggestions) > 250:
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(f"(Truncated to first 250 fixes)", meta_style))
+            story.append(tbl)
 
-        # Include reasoning snippets (text) for the first few fixes
-        reasoning_items = []
-        for f in fix_suggestions[:12]:
-            if not isinstance(f, dict):
-                continue
-            r = _safe_str(f.get("reasoning") or "").strip()
-            if not r:
-                continue
-            reasoning_items.append(f"• {_safe_str(f.get('id'))}: {_compact_text(r, 220)}")
-        if reasoning_items:
-            story.append(Spacer(1, 10))
-            story.append(Paragraph("Fix Reasoning (sample)", h_style))
-            story.append(Paragraph("<br/>".join(reasoning_items), small_style))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("AI-Suggested Fixes (Approval Required)", h_style))
+        if not ai_fixes:
+            story.append(Paragraph("No AI-suggested fixes pending approval.", small_style))
+        else:
+            rows = [["Fix ID", "Confidence", "Target", "Suggested Action", "Reasoning"]]
+            for f in ai_fixes[:200]:
+                target = f"{_safe_str(f.get('segmentId') or f.get('segment'))} · {_safe_str(f.get('elementId') or f.get('element') or f.get('field'))}"
+                action = _safe_str(f.get("operation") or "Update element")
+                rows.append(
+                    [
+                        _compact_text(f.get("id"), 30),
+                        _compact_text(f.get("confidence"), 10),
+                        _compact_text(target, 26),
+                        _compact_text(action, 26),
+                        _compact_text(f.get("reasoning"), 120),
+                    ]
+                )
+            tbl = Table(rows, colWidths=[0.9 * inch, 0.8 * inch, 1.35 * inch, 1.25 * inch, 1.25 * inch], repeatRows=1)
+            tbl.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            story.append(tbl)
+
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Manual Review Required (Critical)", h_style))
+        if not manual_fixes:
+            story.append(Paragraph("No manual review items identified.", small_style))
+        else:
+            story.append(Paragraph("These items cannot be safely auto-fixed and require human validation.", small_style))
+            rows = [["Issue ID", "Target", "Message", "Current Value", "Why not auto-fixed", "Recommended Action"]]
+            issues_by_id = {str(i.get("id")): i for i in orig_norm if i.get("id")}
+            for f in manual_fixes[:200]:
+                err_id = _safe_str(f.get("errorId") or "")
+                issue = issues_by_id.get(err_id, {})
+                target = f"{_safe_str(issue.get('segment') or f.get('segmentId') or f.get('segment'))} · {_safe_str(issue.get('element') or issue.get('field') or f.get('elementId') or f.get('element') or f.get('field'))}"
+                msg = _safe_str(issue.get("description") or issue.get("message") or issue.get("error") or f.get("description"))
+                cur = _safe_str(issue.get("value") or f.get("original") or "")
+                why = _safe_str(f.get("reasoning") or "Cannot derive a safe replacement value from EDI alone.")
+                rec = "Verify using authoritative source (registry/payer rules) and update accordingly."
+                rows.append(
+                    [
+                        _compact_text(err_id, 30),
+                        _compact_text(target, 26),
+                        _compact_text(msg, 85),
+                        _compact_text(cur, 22),
+                        _compact_text(why, 85),
+                        _compact_text(rec, 70),
+                    ]
+                )
+            tbl = Table(rows, colWidths=[0.8 * inch, 1.0 * inch, 1.45 * inch, 0.85 * inch, 1.35 * inch, 1.05 * inch], repeatRows=1)
+            tbl.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7F1D1D")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FEF2F2")),
+                    ]
+                )
+            )
+            story.append(tbl)
+
+        # 5. Detailed Fix Cards (AI + Manual)
+        story.append(Spacer(1, 14))
+        story.append(Paragraph("Detailed Fix Cards", h_style))
+        issues_by_id = {str(i.get("id")): i for i in orig_norm if i.get("id")}
+
+        def _fix_card(f: Dict[str, Any]):
+            err_id = _safe_str(f.get("errorId") or "")
+            issue = issues_by_id.get(err_id, {})
+            seg = _safe_str(issue.get("segment") or f.get("segmentId") or f.get("segment") or "-")
+            el = _safe_str(issue.get("element") or issue.get("field") or f.get("elementId") or f.get("element") or f.get("field") or "-")
+            conf = _safe_str(f.get("confidence") if f.get("confidence") is not None else "0")
+            classification = _classify_fix(f)
+            auto_fix_label = "Yes" if classification == "auto" else "No"
+            if classification == "manual":
+                auto_fix_label = "Not Possible"
+
+            rows = [
+                ["Issue ID", _compact_text(err_id or "-", 60)],
+                ["Segment · Element", _compact_text(f"{seg} · {el}", 120)],
+                ["Confidence", _compact_text(conf + "%", 30)],
+                ["Validation Issue", _compact_text(issue.get("description") or "-", 240)],
+                ["Suggested Fix", _compact_text(_safe_str(f.get("operation") or "Update element value"), 200)],
+                ["Reasoning", _compact_text(_safe_str(f.get("reasoning") or "-"), 260)],
+                ["Current Value", _compact_text(_safe_str(issue.get("value") or f.get("original") or "-"), 200)],
+                ["Replacement Value", _compact_text(_safe_str(f.get("suggested") or "-"), 200)],
+                ["Auto Fix", auto_fix_label],
+            ]
+            card = Table(rows, colWidths=[1.5 * inch, 4.1 * inch])
+            bg = colors.HexColor("#FEF2F2") if classification == "manual" else colors.HexColor("#F9FAFB")
+            card.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("BACKGROUND", (0, 0), (-1, -1), bg),
+                        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 9),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(Spacer(1, 8))
+            story.append(card)
+
+        # Manual first, then AI
+        for f in (manual_fixes[:20] + ai_fixes[:30]):
+            if isinstance(f, dict):
+                _fix_card(f)
 
     story.append(Spacer(1, 14))
     story.append(Paragraph("Changes Log", h_style))
@@ -358,23 +595,56 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             story.append(Spacer(1, 6))
             story.append(Paragraph(f"(Truncated to first 300 changes)", meta_style))
 
-    # Appendix: EDI
+    # 7. Corrected EDI Output
     story.append(PageBreak())
-    story.append(Paragraph("EDI Appendix", h_style))
-    body = corrected_edi.strip() or raw_edi.strip()
-    label = "Corrected EDI" if corrected_edi.strip() else "Uploaded Raw EDI"
-    story.append(Paragraph(f"{label} (truncated)", meta_style))
-    if not body:
+    story.append(Paragraph("Corrected EDI Output", h_style))
+    if not (corrected_edi.strip() or raw_edi.strip()):
         story.append(Paragraph("No EDI content available.", small_style))
     else:
+        label = "Corrected vs Uploaded (diff-style, truncated)" if corrected_edi.strip() else "Uploaded Raw EDI (truncated)"
+        story.append(Paragraph(label, meta_style))
+        lines = _edi_diff_lines(raw_edi, corrected_edi)
         # Keep PDF size reasonable
-        max_chars = 12000
-        truncated = body[:max_chars]
-        if len(body) > max_chars:
+        joined = "\n".join(lines)
+        max_chars = 14000
+        truncated = joined[:max_chars]
+        if len(joined) > max_chars:
             truncated += "\n… (truncated)"
         pre = _escape_pre(truncated).replace("\n", "<br/>")
         story.append(Spacer(1, 8))
         story.append(Paragraph(f"<font name='Courier' size='8'>{pre}</font>", small_style))
+
+    # 8. Technical Insights
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Technical Insights", h_style))
+
+    layer_counts = {
+        "STRUCTURAL": len(grouped.get("STRUCTURAL") or []),
+        "BUSINESS": len(grouped.get("BUSINESS") or []),
+        "EXTERNAL": len(grouped.get("EXTERNAL") or []),
+        "OTHER": len(grouped.get("OTHER") or []),
+    }
+    major_layer = max(layer_counts.items(), key=lambda kv: kv[1])[0] if orig_norm else "-"
+    insights = []
+    insights.append("Root-cause summary (best-effort):")
+    if major_layer == "STRUCTURAL":
+        insights.append("• Most issues are structural (envelope counts, required segments, control numbers, segment counts).")
+    elif major_layer == "BUSINESS":
+        insights.append("• Most issues are business-rule related (missing loops, qualifiers, required provider/patient fields).")
+    elif major_layer == "EXTERNAL":
+        insights.append("• Most issues are external-validation related (registry checks such as NPI and other identifiers).")
+    else:
+        insights.append("• Issues are mixed across validation layers.")
+    if classified["manual"]:
+        insights.append(f"• Human intervention required: {len(classified['manual'])} item(s) cannot be auto-fixed safely.")
+    if classified["ai"]:
+        insights.append(f"• AI review required: {len(classified['ai'])} suggested fix(es) require approval.")
+    insights.append("Compliance notes (HIPAA/X12):")
+    insights.append("• Validate ISA/IEA, GS/GE, ST/SE envelope integrity and transaction set counts.")
+    insights.append("• Ensure provider identifiers (e.g., NPI) and payer-required values match authoritative sources.")
+    insights.append("• External validation is advisory; final submission responsibility remains with the submitting entity.")
+
+    story.append(Paragraph("<br/>".join(_escape_pre(x) for x in insights), small_style))
 
     doc.build(story)
     return buf.getvalue()
