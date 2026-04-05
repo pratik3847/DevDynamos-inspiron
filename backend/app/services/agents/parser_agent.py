@@ -12,7 +12,6 @@ Enhanced with RAG Knowledge System:
 from typing import Any, Dict, Optional
 
 from app.services.parser.parser import parser_agent as parse_edi
-from app.services.rag import RAGClient
 
 
 class ParserAgent:
@@ -20,7 +19,13 @@ class ParserAgent:
 
 	def __init__(self):
 		"""Initialize parser agent with RAG knowledge system."""
-		self.rag = RAGClient()  # RAG knowledge system for TR3 guidance
+		self.rag = None
+		try:
+			# Keep parser bootable even if optional RAG deps are not installed.
+			from app.services.rag import RAGClient
+			self.rag = RAGClient()  # RAG knowledge system for TR3 guidance
+		except Exception:
+			self.rag = None
 
 	def parse_sync(self, edi_text: str, transaction_type: str = "837P", enrich_with_rag: bool = True) -> Dict[str, Any]:
 		"""
@@ -38,7 +43,7 @@ class ParserAgent:
 		result = parse_edi(edi_text)
 		
 		# Enrich with RAG if requested and parsing succeeded
-		if enrich_with_rag and result.get("status") == "parsed":
+		if enrich_with_rag and self.rag is not None and result.get("status") == "parsed":
 			result = self._enrich_with_rag(result, transaction_type)
 		
 		return result

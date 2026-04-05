@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -13,6 +12,7 @@ import Upload from './pages/Upload'
 import ParserEngine from './pages/ParserEngine'
 import ValidationEngine from './pages/ValidationEngine'
 import FixAssistant from './pages/FixAssistant'
+import Dashboard835 from './pages/Dashboard835.tsx'
 
 // @ts-ignore
 import Lenis from 'lenis'
@@ -72,7 +72,7 @@ function App() {
           <Route path="parser" element={<ParserEngine />} />
           <Route path="validation" element={<ValidationEngine />} />
           <Route path="fix-assistant" element={<FixAssistant />} />
-          <Route path="835" element={<div style={{padding: '32px'}}>835 Dashboard (Module Loading...)</div>} />
+          <Route path="835" element={<Dashboard835 />} />
           <Route path="834" element={<div style={{padding: '32px'}}>834 Dashboard (Module Loading...)</div>} />
           <Route path="rules" element={<div style={{padding: '32px'}}>Rule Builder (Module Loading...)</div>} />
           <Route path="history" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Processing History</h2><p style={{color: '#999'}}>Full archive would go here.</p></div>} />

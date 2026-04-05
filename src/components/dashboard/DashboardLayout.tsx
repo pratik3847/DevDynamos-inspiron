@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -89,11 +89,11 @@ export default function DashboardLayout() {
 
           <div className="nav-group-label" style={{ padding: '24px 24px 8px', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Analytics & Tools</div>
           <nav className="dashboard-nav" style={{ padding: '0 12px' }}>
-            <NavLink to="/dashboard/835" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="835 Dashboard">
-              <BarChart size={18} /> <span className="nav-label">835 Dashboard</span>
-            </NavLink>
-            <NavLink to="/dashboard/834" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="834 Dashboard">
+            <NavLink to="/dashboard/835" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="834 Dashboard">
               <BarChart size={18} /> <span className="nav-label">834 Dashboard</span>
+            </NavLink>
+            <NavLink to="/dashboard/834" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="835 Dashboard">
+              <BarChart size={18} /> <span className="nav-label">835 Dashboard</span>
             </NavLink>
             <NavLink to="/dashboard/rules" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="Rule Builder">
               <Settings size={18} /> <span className="nav-label">Rule Builder</span>

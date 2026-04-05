@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Session } from '../../services/types';
 import { api } from '../../services/api';
-import { Check, X, ArrowDown } from 'lucide-react';
+import { Check, ArrowDown } from 'lucide-react';
 
 interface FixPanelProps {
   session: Session;
@@ -12,7 +12,6 @@ export default function FixPanel({ session, onFixApplied }: FixPanelProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   
   const pendingFixes = session.fixes.filter(f => f.status === 'pending');
-  const acceptedFixes = session.fixes.filter(f => f.status === 'accepted');
 
   const handleAccept = async (fix: Session['fixes'][number]) => {
     setProcessing(fix.id);

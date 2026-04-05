@@ -1,4 +1,3 @@
-import React from 'react';
 import { Session } from '../../services/types';
 import { DownloadCloud, FileJson, FileText, CheckCircle } from 'lucide-react';
 import { api } from '../../services/api';

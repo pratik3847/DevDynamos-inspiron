@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { UploadCloud, FileType, CheckCircle } from 'lucide-react';
 
 interface UploadZoneProps {

@@ -3,6 +3,7 @@ from app.models.session_model import create_session
 from app.services.agents.validator_agent import ValidatorAgent
 from app.services.agents.fix_agent import FixAgent
 from app.services.validation.validator import ValidationConfig
+from app.services.enrollment import build_834_member_enrollment_summary
 import datetime
 
 # Import the new pyx12 robust parser
@@ -125,6 +126,9 @@ async def run_pipeline(edi_text: str, userId: str, file_name: str) -> dict:
     
     # 3. Call fix agent
     fixes = fix_agent(val_result, parsed)
+
+    # 3.1 Build centralized member enrollment summary for Dashboard 835/834 view.
+    member_summary = build_834_member_enrollment_summary(parsed)
     
     # 4. Create and persist session in MongoDB
     session_doc = create_session(
@@ -134,6 +138,7 @@ async def run_pipeline(edi_text: str, userId: str, file_name: str) -> dict:
         parsed=parsed,
         errors=issues,
         fixes=fixes,
+        member_enrollment_summary=member_summary,
     )
     
     # Insert safely

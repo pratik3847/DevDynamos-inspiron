@@ -10,6 +10,16 @@ Total embeddings: 240,054
 Vector database: Qdrant Cloud
 """
 
-from .rag_client import RAGClient
+try:
+	from .rag_client import RAGClient
+except Exception:
+	class RAGClient:  # type: ignore[no-redef]
+		"""Fallback no-op RAG client when optional vector/embedding deps are unavailable."""
+
+		def __init__(self, *args, **kwargs):
+			pass
+
+		def query(self, *args, **kwargs):
+			return []
 
 __all__ = ["RAGClient"]
