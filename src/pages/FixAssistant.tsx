@@ -19,6 +19,8 @@ export default function FixAssistant() {
   const [isFixingAll, setIsFixingAll] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<'edi' | 'report' | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAutoOnly, setShowAutoOnly] = useState(false);
 
   useEffect(() => {
     // Ensure we pick up server-side regenerated fixes for older sessions.
@@ -78,6 +80,14 @@ export default function FixAssistant() {
     return (errors || []).filter((e) => !fixableErrorIds.has(String(e.id || '')));
   }, [errors, fixableErrorIds]);
 
+  const errorById = useMemo(() => {
+    const map = new Map<string, any>();
+    (errors || []).forEach((e) => {
+      if (e?.id) map.set(String(e.id), e);
+    });
+    return map;
+  }, [errors]);
+
   const avgConfidence = useMemo(() => {
     const nums = (pendingAutoFixes || [])
       .map((f) => {
@@ -92,6 +102,28 @@ export default function FixAssistant() {
     if (nums.length === 0) return null;
     return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
   }, [pendingAutoFixes]);
+
+  const filteredPendingFixes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return pendingFixes.filter((fix) => {
+      if (showAutoOnly && !canAutoApply(fix)) return false;
+      if (!query) return true;
+      const linkedError = errorById.get(String(fix.errorId || ''));
+      const haystack = [
+        fix.errorId,
+        fix.description,
+        fix.original,
+        fix.suggested,
+        linkedError?.segment,
+        linkedError?.element,
+        linkedError?.loop,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [pendingFixes, showAutoOnly, searchQuery, errorById, canAutoApply]);
 
   const handleApplyFix = async (fix: FixSuggestion) => {
     if (!activeSession?.id || !fix?.id) return;
@@ -132,8 +164,9 @@ export default function FixAssistant() {
     <div className="edi-page">
       <div className="edi-page__header">
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>Fix Assistant</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Auto-fix validation issues and export corrected files</p>
+          <div className="ui-kicker">Fix Operations</div>
+          <h1 className="page-title" style={{ marginBottom: '8px' }}>Fix Assistant</h1>
+          <p className="page-subtitle">Auto-fix validation issues and export corrected files</p>
         </div>
         <div className="edi-page__actions">
           <button
@@ -259,11 +292,28 @@ export default function FixAssistant() {
       <div className="edi-split edi-split--equal">
         {/* Left Pane - AI Suggestions */}
         <div className="dash-card edi-panel">
-          <div className="edi-panel__header">
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-              <Sparkles size={16} color="#00D6FF" /> Fix Suggestions
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pendingFixesCount} pending</span>
+          <div className="edi-panel__header" style={{ flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Sparkles size={16} color="#00D6FF" /> Fix Suggestions
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pendingFixesCount} pending</span>
+            </div>
+            <div className="edi-filter-bar" style={{ justifyContent: 'flex-end' }}>
+              <input
+                className="edi-search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search fixes"
+              />
+              <button
+                className={`toggle-pill ${showAutoOnly ? 'is-active' : ''}`}
+                onClick={() => setShowAutoOnly((prev) => !prev)}
+                type="button"
+              >
+                Auto only
+              </button>
+            </div>
           </div>
 
           <div className="edi-panel__body custom-scrollbar">
@@ -287,13 +337,13 @@ export default function FixAssistant() {
                 </div>
               </div>
             ) : null}
-            {pendingFixesCount === 0 ? (
+            {filteredPendingFixes.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 No fix suggestions available. Review issues in Validation.
               </div>
             ) : (
-              pendingFixes.map((fix, idx) => {
-                const linkedError = (activeSession.errors || []).find((e) => String(e.id) === String(fix.errorId));
+              filteredPendingFixes.map((fix, idx) => {
+                const linkedError = errorById.get(String(fix.errorId || ''));
                 const canApply = Boolean(fix.id) && (fix.suggested !== '' || String(fix.operation || '').toUpperCase() === 'INSERT_NM1_82_FROM_85');
                 return (
                   <div
@@ -312,6 +362,11 @@ export default function FixAssistant() {
                         <div className="fix-card__title">
                           <span className="fix-card__id">{fix.errorId}</span>
                           <span className="fix-card__label">{fix.action || 'Suggested Fix'}</span>
+                          {fix.auto_apply ? (
+                            <span className="status-badge review">Auto</span>
+                          ) : (
+                            <span className="status-badge manual">Review</span>
+                          )}
                         </div>
                         {linkedError?.segment ? (
                           <div className="fix-card__sub">
@@ -357,14 +412,14 @@ export default function FixAssistant() {
                     <div className="edi-replacement-grid" style={{ marginBottom: '16px' }}>
                       <div style={{ background: 'rgba(255, 59, 48, 0.1)', border: '1px solid rgba(255, 59, 48, 0.2)', padding: '12px', borderRadius: '8px' }}>
                         <div style={{ fontSize: '0.75rem', color: '#FF3B30', marginBottom: '4px' }}>Current Value</div>
-                        <div style={{ color: '#FF3B30', fontFamily: 'monospace' }}>{fix.original !== '' ? fix.original : '(unavailable)'}</div>
+                        <div className="ui-mono" style={{ color: '#FF3B30' }}>{fix.original !== '' ? fix.original : '(unavailable)'}</div>
                       </div>
                       <div className="edi-replacement-arrow">
                         <ChevronRight size={16} color="var(--text-secondary)" />
                       </div>
                       <div style={{ background: 'rgba(52, 199, 89, 0.1)', border: '1px solid rgba(52, 199, 89, 0.2)', padding: '12px', borderRadius: '8px' }}>
                         <div style={{ fontSize: '0.75rem', color: '#34C759', marginBottom: '4px' }}>Replacement</div>
-                        <div style={{ color: '#34C759', fontFamily: 'monospace' }}>{fix.suggested !== '' ? fix.suggested : '(unavailable)'}</div>
+                        <div className="ui-mono" style={{ color: '#34C759' }}>{fix.suggested !== '' ? fix.suggested : '(unavailable)'}</div>
                       </div>
                     </div>
 

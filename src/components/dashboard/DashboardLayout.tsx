@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -16,7 +16,7 @@ export default function DashboardLayout() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const storedTheme = localStorage.getItem('dashboard_theme');
-    return storedTheme === 'light' ? 'light' : 'dark';
+    return storedTheme === 'dark' ? 'dark' : 'light';
   });
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
@@ -56,7 +56,7 @@ export default function DashboardLayout() {
           <div style={{ width: '32px', height: '32px', background: 'var(--accent-blue)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Activity size={18} color="#fff" />
           </div>
-          <span className="brand-text" style={{ fontWeight: 700, fontSize: '1.25rem' }} onClick={() => navigate('/')}>EDI Flow</span>
+          <span className="brand-text ui-serif" style={{ fontWeight: 700, fontSize: '1.25rem' }} onClick={() => navigate('/')}>EDI Flow</span>
           <button
             type="button"
             className="sidebar-collapse"
