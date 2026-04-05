@@ -74,18 +74,19 @@ class QdrantManager:
             
             search_filter = Filter(must=filter_conditions) if filter_conditions else None
             
-            # Search
-            results = self.client.search(
+            # Search using new API
+            results = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=limit,
                 query_filter=search_filter,
                 score_threshold=score_threshold
             )
             
-            # Format results
+            # Format results - new API returns QueryResponse with points attribute
             formatted_results = []
-            for result in results:
+            points = getattr(results, 'points', [])
+            for result in points:
                 formatted_results.append({
                     "id": result.id,
                     "score": result.score,
@@ -109,14 +110,19 @@ class QdrantManager:
             info = self.client.get_collection(self.collection_name)
             points_count = getattr(info, "points_count", None)
             vectors_count = getattr(info, "vectors_count", None)
-            if vectors_count is None:
+
+            # Handle client/version differences where only one count field is present.
+            if vectors_count is None and points_count is not None:
                 vectors_count = points_count
+            elif vectors_count is None and points_count is None:
+                vectors_count = 0
 
             distance = None
             try:
-                config = getattr(info, "config", None)
-                params = getattr(config, "params", None) if config else None
+                cfg = getattr(info, "config", None)
+                params = getattr(cfg, "params", None) if cfg else None
                 vectors = getattr(params, "vectors", None) if params else None
+
                 if hasattr(vectors, "distance"):
                     distance = vectors.distance
                 elif isinstance(vectors, dict) and vectors:
@@ -128,12 +134,17 @@ class QdrantManager:
             return {
                 "name": self.collection_name,
                 "vectors_count": vectors_count,
-                "points_count": points_count,
-                "status": getattr(info, "status", None),
+                "points_count": points_count if points_count is not None else vectors_count,
+                "status": getattr(info, "status", "unknown"),
                 "config": {
                     "distance": distance
                 }
             }
         except Exception as e:
             print(f"Error getting collection info: {e}")
-            return {}
+            return {
+                "name": self.collection_name,
+                "vectors_count": 0,
+                "points_count": 0,
+                "status": "error"
+            }

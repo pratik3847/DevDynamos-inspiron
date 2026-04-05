@@ -40,10 +40,15 @@ class RAGClient:
         """Test connection to Qdrant on initialization."""
         try:
             info = self.qdrant.get_collection_info()
-            if info:
+            if info and info.get('vectors_count', 0) > 0:
                 print(f"✓ RAG Client ready - {info.get('vectors_count', 0):,} embeddings available")
+            elif info:
+                print(f"✓ RAG Client connected - Collection '{info.get('name', 'unknown')}' exists but empty")
+            else:
+                print("⚠ RAG Client connected but collection info unavailable")
         except Exception as e:
             print(f"⚠ RAG Client initialized but collection not accessible: {e}")
+            # Continue anyway - RAG queries will handle errors gracefully
     
     def query(
         self,

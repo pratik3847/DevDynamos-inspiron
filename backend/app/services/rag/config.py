@@ -18,4 +18,4 @@ EMBEDDING_DIMENSION = 384
 # Search configuration
 DEFAULT_TOP_K = 5
 MAX_TOP_K = 20
-SIMILARITY_THRESHOLD = 0.7
+SIMILARITY_THRESHOLD = 0.3  # Reduced from 0.7 for better recall
