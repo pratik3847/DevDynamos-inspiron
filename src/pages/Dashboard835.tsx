@@ -66,7 +66,11 @@ const DEFAULT_STATUS: StatusMeta = {
 
 function parseClaimsFromSession(parsedJson: any): ClaimRecord[] {
   // Try to get claims from different possible structures
-  const claims = parsedJson?.claims || parsedJson?.parsed_data?.claims || [];
+  // Priority: parsed_835 (specialized parser) > parsedJson.claims > parsed_data.claims
+  const claims = parsedJson?.parsed_835?.claims || 
+                  parsedJson?.claims || 
+                  parsedJson?.parsed_data?.claims || 
+                  [];
   
   if (!Array.isArray(claims)) return [];
 
@@ -82,11 +86,11 @@ function parseClaimsFromSession(parsedJson: any): ClaimRecord[] {
     }));
 
     return {
-      key: `claim_${index}_${claim.claim_control_number || claim.claimId || index}`,
-      claimId: claim.claim_control_number || claim.claimId || `CLM${index}`,
+      key: `claim_${index}_${claim.claim_submitter_identifier || claim.claim_control_number || claim.claimId || index}`,
+      claimId: claim.claim_submitter_identifier || claim.claim_control_number || claim.claimId || `CLM${index}`,
       patientName: claim.patient_name || claim.patientName || 'Unknown Patient',
-      billedAmount: parseFloat(claim.total_billed_amount || claim.billedAmount || 0),
-      paidAmount: parseFloat(claim.total_paid_amount || claim.paidAmount || 0),
+      billedAmount: parseFloat(claim.total_claim_charge_amount || claim.total_billed_amount || claim.billedAmount || 0),
+      paidAmount: parseFloat(claim.claim_payment_amount || claim.total_paid_amount || claim.paidAmount || 0),
       patientResponsibility: parseFloat(claim.patient_responsibility_amount || claim.patientResponsibility || 0),
       statusCode,
       statusLabel: statusMeta.label,

@@ -9,6 +9,9 @@ import datetime
 # Import the new pyx12 robust parser
 from app.services.parser.parser import parser_agent
 
+# Import 835 remittance parser
+from app.services.parser_835.parser_835 import Parser835
+
 # Validation configuration
 # External validation enables calls to external data sources (e.g., NPPES) and is collected as warnings.
 validator_config = ValidationConfig(enable_external_validation=True)
@@ -110,6 +113,20 @@ async def run_pipeline(edi_text: str, userId: str, file_name: str) -> dict:
 
     transaction_type = _detect_transaction_type(parsed, default="837P")
     
+    # 1.5 For 835 files, also run specialized 835 parser
+    parsed_835_data = None
+    if transaction_type == "835":
+        try:
+            parser_835 = Parser835()
+            parsed_835_data = parser_835.parse_file(edi_text)
+            # Add enriched patient names to claims
+            for claim in parsed_835_data.get("claims", []):
+                patient = claim.get("patient", {})
+                claim["patient_name"] = f"{patient.get('last_name', '')}, {patient.get('first_name', '')}".strip(", ")
+        except Exception as e:
+            print(f"835 parser error: {e}")
+            # Continue with standard parsing even if 835 parser fails
+    
     # 2. Call REAL validator agent
     # Using validate_sync to stay within synchronous flow for now, but ValidatorAgent supports async execute()
     val_result_obj = validator_instance.validate_sync(parsed, transaction_type=transaction_type)
@@ -140,6 +157,10 @@ async def run_pipeline(edi_text: str, userId: str, file_name: str) -> dict:
         fixes=fixes,
         member_enrollment_summary=member_summary,
     )
+    
+    # 4.1 Add 835-specific parsed data if available
+    if parsed_835_data:
+        session_doc["parsed_835"] = parsed_835_data
     
     # Insert safely
     if sessions_collection is None:
