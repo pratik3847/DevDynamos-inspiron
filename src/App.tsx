@@ -13,6 +13,7 @@ import ParserEngine from './pages/ParserEngine'
 import ValidationEngine from './pages/ValidationEngine'
 import FixAssistant from './pages/FixAssistant'
 import Dashboard835 from './pages/Dashboard835.tsx'
+import RuleBuilder from './pages/RuleBuilder'
 
 // @ts-ignore
 import Lenis from 'lenis'
@@ -74,7 +75,7 @@ function App() {
           <Route path="fix-assistant" element={<FixAssistant />} />
           <Route path="835" element={<Dashboard835 />} />
           <Route path="834" element={<div style={{padding: '32px'}}>834 Dashboard (Module Loading...)</div>} />
-          <Route path="rules" element={<div style={{padding: '32px'}}>Rule Builder (Module Loading...)</div>} />
+          <Route path="rules" element={<RuleBuilder />} />
           <Route path="history" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Processing History</h2><p style={{color: '#999'}}>Full archive would go here.</p></div>} />
           <Route path="chat" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Global AI Assistant</h2><p style={{color: '#999'}}>Cross-session query interface would go here.</p></div>} />
           <Route path="settings" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Settings</h2><p style={{color: '#999'}}>Payer configurations and rulesets would go here.</p></div>} />
