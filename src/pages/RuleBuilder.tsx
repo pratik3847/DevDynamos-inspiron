@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -11,27 +11,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
-
-type RuleCategory = 'Structural' | 'Business' | 'External';
-type RuleSeverity = 'Critical' | 'Error' | 'Warning' | 'Info';
-
-type RuleDefinition = {
-  id: string;
-  name: string;
-  category: RuleCategory;
-  severity: RuleSeverity;
-  description: string;
-  scope: string[];
-  source: string;
-  tags: string[];
-  enabled: boolean;
-  defaultEnabled: boolean;
-  runtime: 'Realtime' | 'Batch' | 'External';
-  lastUpdated: string;
-};
-
-const RULES_STORAGE_KEY = 'edi_rules_registry_v1';
-const RULES_SAVED_AT_KEY = 'edi_rules_saved_at';
+import { api } from '../services/api';
+import { RuleCategory, RuleDefinition, RuleSeverity } from '../services/types';
 
 const DEFAULT_RULES: RuleDefinition[] = [
   {
@@ -190,43 +171,50 @@ const DEFAULT_RULES: RuleDefinition[] = [
   },
 ];
 
-const loadRules = (): RuleDefinition[] => {
-  if (typeof window === 'undefined') return DEFAULT_RULES;
-  const stored = window.localStorage.getItem(RULES_STORAGE_KEY);
-  if (!stored) return DEFAULT_RULES;
-  try {
-    const parsed = JSON.parse(stored) as RuleDefinition[];
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-  } catch (err) {
-    return DEFAULT_RULES;
-  }
-  return DEFAULT_RULES;
-};
-
-const persistRules = (rules: RuleDefinition[]): string => {
-  const timestamp = new Date().toISOString();
-  if (typeof window === 'undefined') return timestamp;
-  window.localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
-  window.localStorage.setItem(RULES_SAVED_AT_KEY, timestamp);
-  return timestamp;
-};
-
-const getStoredTimestamp = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(RULES_SAVED_AT_KEY);
-};
-
 const withDelay = (value: string) => ({ ['--delay' as any]: value });
 
 export default function RuleBuilder() {
-  const [rules, setRules] = useState<RuleDefinition[]>(() => loadRules());
-  const [savedRules, setSavedRules] = useState<RuleDefinition[]>(() => loadRules());
+  const [rules, setRules] = useState<RuleDefinition[]>([]);
+  const [savedRules, setSavedRules] = useState<RuleDefinition[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | RuleCategory>('all');
   const [severityFilter, setSeverityFilter] = useState<'all' | RuleSeverity>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [scopeFilter, setScopeFilter] = useState<'all' | '837P' | '835' | '834'>('all');
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => getStoredTimestamp());
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await api.getRules();
+        if (!mounted) return;
+        const incoming = data.rules.length > 0 ? data.rules : DEFAULT_RULES;
+        setRules(incoming);
+        setSavedRules(incoming);
+        setLastSavedAt(data.updatedAt || null);
+        setLoadError(null);
+      } catch (err) {
+        if (!mounted) return;
+        const message = err instanceof Error ? err.message : 'Unable to load rule preferences.';
+        setLoadError(message);
+        setRules(DEFAULT_RULES);
+        setSavedRules(DEFAULT_RULES);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const toggleRule = (ruleId: string) => {
     setRules((prev) =>
@@ -234,14 +222,40 @@ export default function RuleBuilder() {
     );
   };
 
-  const resetDefaults = () => {
-    setRules(DEFAULT_RULES);
+  const resetDefaults = async () => {
+    setSaving(true);
+    try {
+      const data = await api.resetRules();
+      const incoming = data.rules.length > 0 ? data.rules : DEFAULT_RULES;
+      setRules(incoming);
+      setSavedRules(incoming);
+      setLastSavedAt(data.updatedAt || null);
+      setLoadError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to reset rules.';
+      setLoadError(message);
+      setRules(DEFAULT_RULES);
+      setSavedRules(DEFAULT_RULES);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const saveChanges = () => {
-    const timestamp = persistRules(rules);
-    setSavedRules(rules);
-    setLastSavedAt(timestamp);
+  const saveChanges = async () => {
+    setSaving(true);
+    try {
+      const data = await api.updateRules(rules);
+      const incoming = data.rules.length > 0 ? data.rules : rules;
+      setRules(incoming);
+      setSavedRules(incoming);
+      setLastSavedAt(data.updatedAt || new Date().toISOString());
+      setLoadError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to save rules.';
+      setLoadError(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const clearFilters = () => {
@@ -298,9 +312,14 @@ export default function RuleBuilder() {
     });
   }, [rules, searchTerm, categoryFilter, severityFilter, statusFilter, scopeFilter]);
 
-  const statusLabel = pendingCount > 0 ? `${pendingCount} change(s) pending` : 'All changes saved';
-  const statusTone = pendingCount > 0 ? 'is-pending' : 'is-saved';
+  const statusLabel = loading
+    ? 'Loading rules'
+    : pendingCount > 0
+      ? `${pendingCount} change(s) pending`
+      : 'All changes saved';
+  const statusTone = loading ? 'muted' : pendingCount > 0 ? 'is-pending' : 'is-saved';
   const savedLabel = lastSavedAt ? new Date(lastSavedAt).toLocaleString() : 'Not saved yet';
+  const syncLabel = loadError ? 'Sync unavailable' : 'Saved to account';
 
   return (
     <div className="edi-page rules-page">
@@ -316,14 +335,19 @@ export default function RuleBuilder() {
               <CheckCircle2 size={14} /> {statusLabel}
             </span>
             <span className="rules-status-pill muted">Last saved: {savedLabel}</span>
-            <span className="rules-status-pill muted">Local draft only</span>
+            <span className="rules-status-pill muted">{syncLabel}</span>
           </div>
         </div>
         <div className="rules-hero__actions">
-          <button type="button" className="btn outline" onClick={resetDefaults}>
+          <button type="button" className="btn outline" onClick={resetDefaults} disabled={loading || saving}>
             <RefreshCw size={16} /> Reset defaults
           </button>
-          <button type="button" className="btn primary" onClick={saveChanges} disabled={pendingCount === 0}>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={saveChanges}
+            disabled={pendingCount === 0 || loading || saving}
+          >
             <Save size={16} /> Save preferences
           </button>
         </div>
@@ -438,7 +462,15 @@ export default function RuleBuilder() {
       </div>
 
       <div className="rules-grid">
-        {filteredRules.length === 0 ? (
+        {loading ? (
+          <div className="dash-card rules-empty">
+            <AlertCircle size={36} />
+            <div>
+              <div className="rules-empty__title">Loading rules</div>
+              <div className="rules-empty__subtitle">Fetching your saved preferences.</div>
+            </div>
+          </div>
+        ) : filteredRules.length === 0 ? (
           <div className="dash-card rules-empty">
             <AlertCircle size={36} />
             <div>

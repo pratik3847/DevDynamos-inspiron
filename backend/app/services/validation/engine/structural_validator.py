@@ -282,7 +282,8 @@ class StructuralValidator:
                     segment="IEA",
                     field="IEA02",
                     error=f"IEA control number ({iea_control}) does not match ISA ({isa_control})",
-                    suggestion="Ensure ISA13 and IEA02 have matching control numbers"
+                    suggestion="Ensure ISA13 and IEA02 have matching control numbers",
+                    code="ISA13_IEA02",
                 )
             )
         
@@ -299,7 +300,8 @@ class StructuralValidator:
                     segment="GE",
                     field="GE02",
                     error=f"GE control number ({ge_control}) does not match GS ({gs_control})",
-                    suggestion="Ensure GS06 and GE02 have matching control numbers"
+                    suggestion="Ensure GS06 and GE02 have matching control numbers",
+                    code="GS06_GE02",
                 )
             )
         
@@ -316,7 +318,8 @@ class StructuralValidator:
                     segment="SE",
                     field="SE02",
                     error=f"SE control number ({se_control}) does not match ST ({st_control})",
-                    suggestion="Ensure ST02 and SE02 have matching control numbers"
+                    suggestion="Ensure ST02 and SE02 have matching control numbers",
+                    code="ST02_SE02",
                 )
             )
     
@@ -348,7 +351,8 @@ class StructuralValidator:
                         field="SE01",
                         error=f"SE segment count ({se_count}) does not match actual count ({actual_count})",
                         suggestion=f"Update SE01 to {actual_count}",
-                        fixable=True
+                        fixable=True,
+                        code="SE01_SEGCOUNT",
                     )
                 )
     

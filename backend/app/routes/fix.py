@@ -15,7 +15,7 @@ except ImportError:
 try:
     from app.services.pipeline.pipeline import validator_agent
 except ImportError:
-    def validator_agent(parsed_data: dict):
+    def validator_agent(parsed_data: dict, transaction_type: str = "837P", user_id: str = ""):
         return []
 
 try:
@@ -494,7 +494,7 @@ async def apply_fix(request: ApplyFixRequest, current_user: dict = Depends(get_c
         })
 
         corrected_edi = edi_generator(modified_json)
-        after_issues = validator_agent(modified_json, transaction_type="auto")
+        after_issues = validator_agent(modified_json, transaction_type="auto", user_id=current_user["userId"])
         diff = _diff_issues(before_issues, after_issues)
 
         fix_reports = session.get("fixReports") or []
@@ -604,7 +604,7 @@ async def apply_fix(request: ApplyFixRequest, current_user: dict = Depends(get_c
     corrected_edi = edi_generator(modified_json)
 
     # 6.5 Re-run validation logic to catch outstanding or cleared errors
-    after_issues = validator_agent(modified_json, transaction_type="auto")
+    after_issues = validator_agent(modified_json, transaction_type="auto", user_id=current_user["userId"])
     diff = _diff_issues(before_issues, after_issues)
 
     # Try to attach the original fix suggestion description for auditability
@@ -787,7 +787,7 @@ async def apply_fix_batch(request: ApplyFixBatchRequest, current_user: dict = De
         })
 
     corrected_edi = edi_generator(modified_json)
-    after_issues = validator_agent(modified_json, transaction_type="auto")
+    after_issues = validator_agent(modified_json, transaction_type="auto", user_id=current_user["userId"])
     diff = _diff_issues(before_issues, after_issues)
 
     fix_reports = session.get("fixReports") or []

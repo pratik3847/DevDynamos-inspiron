@@ -4,7 +4,7 @@ Initializes the FastAPI app, includes routers from `app.routes`, and handles glo
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, files, fix, ai
+from app.routes import auth, files, fix, ai, rules
 from app.routes.parser import parser_835_routes
 
 app = FastAPI(title="EDI Platform Backend")
@@ -22,6 +22,7 @@ app.include_router(auth.router)
 app.include_router(files.router)
 app.include_router(fix.router)
 app.include_router(ai.router)
+app.include_router(rules.router)
 app.include_router(parser_835_routes.router)
 
 @app.get("/")

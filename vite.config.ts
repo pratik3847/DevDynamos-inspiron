@@ -9,7 +9,8 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
       '/auth': 'http://localhost:8000',
       '/files': 'http://localhost:8000',
-      '/fix': 'http://localhost:8000'
+      '/fix': 'http://localhost:8000',
+      '/rules': 'http://localhost:8000'
     }
   }
 })

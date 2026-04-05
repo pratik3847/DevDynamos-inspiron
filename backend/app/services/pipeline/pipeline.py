@@ -3,6 +3,8 @@ from app.models.session_model import create_session
 from app.services.agents.validator_agent import ValidatorAgent
 from app.services.agents.fix_agent import FixAgent
 from app.services.validation.validator import ValidationConfig
+from app.services.rules.store import apply_rule_preferences
+from typing import Optional
 from app.services.enrollment import build_834_member_enrollment_summary
 import datetime
 
@@ -86,7 +88,7 @@ def _normalize_validation_errors(errors: list) -> list:
     return normalized
 
 
-def validator_agent(edi_data: dict, transaction_type: str = "837P") -> list:
+def validator_agent(edi_data: dict, transaction_type: str = "837P", user_id: Optional[str] = None) -> list:
     """Shared validator entrypoint used by both the upload pipeline and fix-apply."""
     if not transaction_type or transaction_type == "auto":
         transaction_type = _detect_transaction_type(edi_data, default="837P")
@@ -94,6 +96,7 @@ def validator_agent(edi_data: dict, transaction_type: str = "837P") -> list:
     result = result_obj.to_dict()
     errors = _normalize_validation_errors(result.get("errors", []))
     warnings = _normalize_validation_errors(result.get("warnings", []))
+    errors, warnings = apply_rule_preferences(errors, warnings, user_id)
     return errors + warnings
 
 def fix_agent(validation_result: dict, parsed: dict) -> list:
@@ -135,6 +138,7 @@ async def run_pipeline(edi_text: str, userId: str, file_name: str) -> dict:
     # Normalize errors + warnings for consistent downstream use
     errors = _normalize_validation_errors(val_result.get("errors", []))
     warnings = _normalize_validation_errors(val_result.get("warnings", []))
+    errors, warnings = apply_rule_preferences(errors, warnings, userId)
     val_result["errors"] = errors
     val_result["warnings"] = warnings
 

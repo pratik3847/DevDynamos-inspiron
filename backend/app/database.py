@@ -18,6 +18,7 @@ try:
     db = client["edi_platform"]
     users_collection = db["users"]
     sessions_collection = db["sessions"]
+    rules_collection = db["rules"]
     print("=> Successfully connected to MongoDB.")
 except Exception as e:
     print(f"=> WARNING: Could not connect to MongoDB. API will gracefully downgrade to mocks. ({e})")
@@ -25,3 +26,4 @@ except Exception as e:
     db = None
     users_collection = None
     sessions_collection = None
+    rules_collection = None

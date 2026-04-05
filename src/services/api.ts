@@ -1,4 +1,4 @@
-import { Session, User, ChatMessage, FixSuggestion } from './types';
+import { Session, User, ChatMessage, FixSuggestion, RuleDefinition } from './types';
 
 // Reusing Types but dropping mock objects for actual API
 
@@ -286,6 +286,59 @@ class ApiService {
 
   async downloadSessionReport(sessionId: string): Promise<void> {
     await this.downloadToFile(`/files/session/${sessionId}/download/report`, 'fix-report.pdf');
+  }
+
+  // Rules
+  async getRules(): Promise<{ rules: RuleDefinition[]; updatedAt?: string | null }> {
+    const response = await fetch('/rules', {
+      method: 'GET',
+      headers: this.getHeaders(false)
+    });
+
+    if (!response.ok) {
+      return this.parseApiError(response, 'Failed to load rule preferences');
+    }
+
+    const data = await response.json();
+    return {
+      rules: Array.isArray(data?.rules) ? data.rules : [],
+      updatedAt: data?.updatedAt || null,
+    };
+  }
+
+  async updateRules(rules: RuleDefinition[]): Promise<{ rules: RuleDefinition[]; updatedAt?: string | null }> {
+    const response = await fetch('/rules', {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ rules })
+    });
+
+    if (!response.ok) {
+      return this.parseApiError(response, 'Failed to save rule preferences');
+    }
+
+    const data = await response.json();
+    return {
+      rules: Array.isArray(data?.rules) ? data.rules : [],
+      updatedAt: data?.updatedAt || null,
+    };
+  }
+
+  async resetRules(): Promise<{ rules: RuleDefinition[]; updatedAt?: string | null }> {
+    const response = await fetch('/rules/reset', {
+      method: 'POST',
+      headers: this.getHeaders()
+    });
+
+    if (!response.ok) {
+      return this.parseApiError(response, 'Failed to reset rule preferences');
+    }
+
+    const data = await response.json();
+    return {
+      rules: Array.isArray(data?.rules) ? data.rules : [],
+      updatedAt: data?.updatedAt || null,
+    };
   }
 
   // AI Chat

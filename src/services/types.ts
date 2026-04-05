@@ -7,6 +7,25 @@ export interface User {
   token?: string;
 }
 
+export type RuleCategory = 'Structural' | 'Business' | 'External';
+export type RuleSeverity = 'Critical' | 'Error' | 'Warning' | 'Info';
+
+export interface RuleDefinition {
+  id: string;
+  name: string;
+  category: RuleCategory;
+  severity: RuleSeverity;
+  description: string;
+  scope: string[];
+  source: string;
+  tags: string[];
+  enabled: boolean;
+  defaultEnabled: boolean;
+  runtime: 'Realtime' | 'Batch' | 'External';
+  lastUpdated: string;
+  matchCodes?: string[];
+}
+
 export interface ValidationError {
   id: string;
   loop: string;
