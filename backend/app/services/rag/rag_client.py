@@ -19,11 +19,22 @@ class RAGClient:
         ...     print(f"Relevance: {result['score']:.2%}")
     """
     
+    _singleton = None
+
+    def __new__(cls):
+        if cls._singleton is None:
+            cls._singleton = super().__new__(cls)
+            cls._singleton._initialized = False
+        return cls._singleton
+
     def __init__(self):
         """Initialize the RAG client."""
+        if getattr(self, "_initialized", False):
+            return
         self.qdrant = QdrantManager()
         self.embedder = EmbeddingModel()
         self._test_connection()
+        self._initialized = True
     
     def _test_connection(self):
         """Test connection to Qdrant on initialization."""

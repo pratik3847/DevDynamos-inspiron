@@ -1,8 +1,6 @@
 """Fix Agent
 
-Generates actionable correction suggestions from validation errors.
-
-Enhanced with RAG Knowledge System:
+Generates actionable correction suggestions from validation errors.Enhanced with RAG Knowledge System:
 - Queries TR3 guides for segment structure and requirements
 - Provides fix examples from implementation documentation
 - Cites official sources for recommended corrections

@@ -107,13 +107,31 @@ class QdrantManager:
         """Get information about the collection."""
         try:
             info = self.client.get_collection(self.collection_name)
+            points_count = getattr(info, "points_count", None)
+            vectors_count = getattr(info, "vectors_count", None)
+            if vectors_count is None:
+                vectors_count = points_count
+
+            distance = None
+            try:
+                config = getattr(info, "config", None)
+                params = getattr(config, "params", None) if config else None
+                vectors = getattr(params, "vectors", None) if params else None
+                if hasattr(vectors, "distance"):
+                    distance = vectors.distance
+                elif isinstance(vectors, dict) and vectors:
+                    first = next(iter(vectors.values()), None)
+                    distance = getattr(first, "distance", None)
+            except Exception:
+                distance = None
+
             return {
                 "name": self.collection_name,
-                "vectors_count": info.vectors_count,
-                "points_count": info.points_count,
-                "status": info.status,
+                "vectors_count": vectors_count,
+                "points_count": points_count,
+                "status": getattr(info, "status", None),
                 "config": {
-                    "distance": info.config.params.vectors.distance if hasattr(info.config.params, 'vectors') else None
+                    "distance": distance
                 }
             }
         except Exception as e:

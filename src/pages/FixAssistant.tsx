@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -53,6 +53,14 @@ export default function FixAssistant() {
   const pendingFixes = fixes.filter((f) => f.status !== 'accepted');
   const pendingFixesCount = pendingFixes.length;
 
+  const canAutoApply = (fix: FixSuggestion) => fix.auto_apply === true && fix.suggested !== '';
+  const pendingAutoFixes = pendingFixes.filter(canAutoApply);
+  const pendingAutoFixesCount = pendingAutoFixes.length;
+  const reviewFixesCount = pendingFixesCount - pendingAutoFixesCount;
+
+  const originalErrors = activeSession.originalErrors || [];
+  const totalIssues = originalErrors.length > 0 ? originalErrors.length : errors.length;
+
   const fixableErrorIds = useMemo(() => new Set((fixes || []).map((f) => String(f.errorId || ''))), [fixes]);
   const notAutoFixableCount = useMemo(() => {
     const uniqueErrors = new Set((errors || []).map((e) => String(e.id || '')));
@@ -64,17 +72,26 @@ export default function FixAssistant() {
     return count;
   }, [errors, fixableErrorIds]);
 
+  const manualReviewCount = notAutoFixableCount + reviewFixesCount;
+
   const manualIssues = useMemo(() => {
     return (errors || []).filter((e) => !fixableErrorIds.has(String(e.id || '')));
   }, [errors, fixableErrorIds]);
 
   const avgConfidence = useMemo(() => {
-    const nums = (pendingFixes || [])
-      .map((f) => (typeof f.confidenceScore === 'number' ? f.confidenceScore : null))
+    const nums = (pendingAutoFixes || [])
+      .map((f) => {
+        if (typeof f.confidenceScore === 'number' && Number.isFinite(f.confidenceScore)) return f.confidenceScore;
+        const label = String(f.confidence || '').toLowerCase();
+        if (label === 'high') return 90;
+        if (label === 'medium') return 75;
+        if (label === 'low') return 60;
+        return null;
+      })
       .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
     if (nums.length === 0) return null;
     return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
-  }, [pendingFixes]);
+  }, [pendingAutoFixes]);
 
   const handleApplyFix = async (fix: FixSuggestion) => {
     if (!activeSession?.id || !fix?.id) return;
@@ -94,11 +111,7 @@ export default function FixAssistant() {
   const handleAutoFixAll = async () => {
     if (!activeSession?.id) return;
     const toApply = (activeSession.fixes || []).filter(
-      (f) =>
-        f.status !== 'accepted' &&
-        f.id &&
-        (f.auto_apply === true) &&
-        f.suggested !== ''
+      (f) => f.status !== 'accepted' && f.id && canAutoApply(f)
     );
     if (toApply.length === 0) return;
 
@@ -127,8 +140,8 @@ export default function FixAssistant() {
             className="btn outline"
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             onClick={handleAutoFixAll}
-            disabled={!activeSession?.id || isFixingAll || pendingFixesCount === 0}
-            title={pendingFixesCount === 0 ? 'No pending auto-fixes available' : 'Apply all pending auto-fixes'}
+            disabled={!activeSession?.id || isFixingAll || pendingAutoFixesCount === 0}
+            title={pendingAutoFixesCount === 0 ? 'No pending auto-fixes available' : 'Apply all pending auto-fixes'}
           >
             <Wand2 size={16} /> {isFixingAll ? 'Auto-Fixing...' : 'Auto Fix All'}
           </button>
@@ -162,7 +175,7 @@ export default function FixAssistant() {
             <div>
               <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>Fix Summary</div>
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                {pendingFixesCount} pending auto-fixes · {errors.length} validation issues
+                {pendingAutoFixesCount} auto-fixable pending · {manualReviewCount} manual review · {totalIssues} total issues
               </div>
             </div>
           </div>
@@ -183,7 +196,7 @@ export default function FixAssistant() {
             <CheckCircle2 color="#34C759" size={20} />
             <div>
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34C759' }}>{appliedFixesCount}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fixed</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Applied Fixes</div>
             </div>
           </div>
 
@@ -200,8 +213,8 @@ export default function FixAssistant() {
           >
             <RefreshCw color="#0050FF" size={20} />
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0050FF' }}>{pendingFixesCount}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Pending</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0050FF' }}>{pendingAutoFixesCount}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Auto-Fixable Pending</div>
             </div>
           </div>
 
@@ -218,8 +231,8 @@ export default function FixAssistant() {
           >
             <AlertTriangle color="#FF9500" size={20} />
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FF9500' }}>{notAutoFixableCount}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Not Auto-Fixable</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FF9500' }}>{manualReviewCount}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Manual Review</div>
             </div>
           </div>
 
@@ -248,7 +261,7 @@ export default function FixAssistant() {
         <div className="dash-card edi-panel">
           <div className="edi-panel__header">
             <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-              <Sparkles size={16} color="#00D6FF" /> Auto Fix Suggestions
+              <Sparkles size={16} color="#00D6FF" /> Fix Suggestions
             </h3>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pendingFixesCount} pending</span>
           </div>
@@ -276,7 +289,7 @@ export default function FixAssistant() {
             ) : null}
             {pendingFixesCount === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                No automated fixes available. Review issues in Validation.
+                No fix suggestions available. Review issues in Validation.
               </div>
             ) : (
               pendingFixes.map((fix, idx) => {
