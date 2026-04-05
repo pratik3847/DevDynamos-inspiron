@@ -2,15 +2,22 @@
 
 Generates actionable correction suggestions from validation errors.
 
+Enhanced with RAG Knowledge System:
+- Queries TR3 guides for segment structure and requirements
+- Provides fix examples from implementation documentation
+- Cites official sources for recommended corrections
+
 Goal:
 - Avoid mock values (e.g., FIXED_VAL/INVALID_VAL).
 - Emit only deterministic fixes when we can compute a concrete new value.
+- Ground fixes in TR3 specifications via RAG
 """
 
 from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Optional, Tuple
+from app.services.rag import RAGClient
 
 
 def _iter_segments(parsed: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -199,14 +206,19 @@ def _build_fix(
 
 
 class FixAgent:
-	"""Deterministic fix suggester.
+	"""Deterministic fix suggester with RAG-powered documentation lookup.
 
 	Only emits fixes when:
 	- The validation error points to a specific (segment, field/element), and
 	- We can derive a concrete replacement value.
+	- RAG can provide TR3 specification context for the fix
 	"""
 
-	def generate_fixes(self, validation_result: Dict[str, Any], parsed: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+	def __init__(self):
+		"""Initialize fix agent with RAG knowledge system."""
+		self.rag = RAGClient()  # RAG knowledge system for TR3 guidance
+
+	def generate_fixes(self, validation_result: Dict[str, Any], parsed: Optional[Dict[str, Any]] = None, transaction_type: str = "837P") -> List[Dict[str, Any]]:
 		fixes: List[Dict[str, Any]] = []
 		errors = (validation_result or {}).get("errors", [])
 		if not isinstance(errors, list):
@@ -365,10 +377,68 @@ class FixAgent:
 				),
 			)
 
+		# Enrich all fixes with RAG documentation context
+		fixes = self._enrich_fixes_with_rag(fixes, transaction_type)
+		
+		return fixes
+	
+	def _enrich_fixes_with_rag(self, fixes: List[Dict[str, Any]], transaction_type: str) -> List[Dict[str, Any]]:
+		"""
+		Enrich fix suggestions with RAG documentation and examples.
+		
+		Args:
+			fixes: List of fix suggestions
+			transaction_type: Transaction type for context
+			
+		Returns:
+			Enhanced fixes with RAG context
+		"""
+		for fix in fixes:
+			try:
+				segment_id = fix.get('segment_id', '')
+				element_id = fix.get('element_id', '')
+				
+				if not segment_id:
+					continue
+				
+				# Query RAG for segment fix guidance
+				if element_id:
+					query = f"What is the correct format for {segment_id} element {element_id} in {transaction_type}?"
+				else:
+					query = f"How to correctly structure {segment_id} segment in {transaction_type}?"
+				
+				rag_results = self.rag.query(
+					query,
+					transaction_type=transaction_type,
+					doc_type="tr3",
+					top_k=1
+				)
+				
+				if rag_results:
+					fix['rag_guidance'] = {
+						'documentation': rag_results[0]['text'][:300],
+						'source': rag_results[0]['source_doc'],
+						'page': rag_results[0]['page'],
+						'relevance': rag_results[0]['score']
+					}
+					
+					# Add to reasoning if not already detailed
+					if fix.get('confidence', 0) < 1.0:
+						existing_reasoning = fix.get('reasoning', '')
+						fix['reasoning'] = f"{existing_reasoning} (See {rag_results[0]['source_doc']}, page {rag_results[0]['page']} for specification details)"
+			
+			except Exception:
+				# Gracefully handle RAG query failures
+				pass
+		
 		return fixes
 
 	async def execute(self, session_state: Dict[str, Any]) -> Dict[str, Any]:
+		"""Execute fix generation workflow with RAG enhancement."""
 		validation_result = session_state.get("validation_result") or {}
 		parsed = session_state.get("parsed_edi")
-		session_state["fixes"] = self.generate_fixes(validation_result, parsed)
+		transaction_type = session_state.get("transaction_type", "837P")
+		
+		# Generate fixes with RAG enhancement
+		session_state["fixes"] = self.generate_fixes(validation_result, parsed, transaction_type)
 		return session_state
