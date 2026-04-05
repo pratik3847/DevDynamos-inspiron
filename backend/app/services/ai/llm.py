@@ -200,7 +200,12 @@ class LLMService:
         except Exception as e:
             return self._format_groq_error("Error analyzing EDI error", e)
 
-    def explain_edi_segment(self, segment_id: str, segment_content: Optional[str] = None) -> str:
+    def explain_edi_segment(
+        self,
+        segment_id: str,
+        segment_content: Optional[str] = None,
+        context: Optional[str] = None,
+    ) -> str:
         if not self._ensure_client():
             return self._not_configured_message("explain-segment")
 
@@ -216,12 +221,26 @@ class LLMService:
             "If you mention element positions, keep it to at most two (e.g., NM101, NM108)."
         )
 
-        if segment_content:
+        if segment_content and context:
+            question = (
+                f"{style}\n\n"
+                f"Context (TR3 / docs):\n{context}\n\n"
+                f"Explain what the X12 segment '{segment_id}' means and what this specific instance is doing. "
+                "Focus on what it represents in the transaction and why it matters.\n\n"
+                f"Segment instance: {segment_content}"
+            )
+        elif segment_content:
             question = (
                 f"{style}\n\n"
                 f"Explain what the X12 segment '{segment_id}' means and what this specific instance is doing. "
                 "Focus on what it represents in the transaction and why it matters.\n\n"
                 f"Segment instance: {segment_content}"
+            )
+        elif context:
+            question = (
+                f"{style}\n\n"
+                f"Context (TR3 / docs):\n{context}\n\n"
+                f"Explain what the X12 segment '{segment_id}' is used for and why it matters."
             )
         else:
             question = (
