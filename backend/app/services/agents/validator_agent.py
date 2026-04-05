@@ -2,9 +2,15 @@
 Validator Agent
 Represents the validation phase. Takes the parsed JSON from state, calls `services.validation.validator`,
 and appends any validation errors/warnings back into the session document.
+
+Enhanced with RAG Knowledge System:
+- Queries TR3 implementation guides for validation rules
+- Provides regulatory context for errors
+- References specific documentation pages
 """
 from typing import Dict, Any, Optional
 from ..validation import EDIValidator, ValidationConfig, ValidationResult
+from ..rag import RAGClient
 
 
 class ValidatorAgent:
@@ -23,6 +29,7 @@ class ValidatorAgent:
         """
         self.llm = llm_service
         self.validator = EDIValidator(config or ValidationConfig())
+        self.rag = RAGClient()  # RAG knowledge system for TR3 guidance
     
     async def execute(self, session_state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -98,15 +105,47 @@ class ValidatorAgent:
     
     async def _enhance_with_ai(self, result: ValidationResult) -> ValidationResult:
         """
-        Use LLM to generate human-readable explanations and suggestions
+        Use RAG and LLM to generate human-readable explanations and suggestions
         
         Args:
             result: Validation result to enhance
         
         Returns:
-            Enhanced validation result
+            Enhanced validation result with RAG-powered context
         """
-        # TODO: Implement LLM-based enhancement
+        # Query RAG for relevant TR3 documentation
+        for error in result.errors:
+            try:
+                # Extract transaction type and segment from error
+                transaction_type = getattr(result, 'transaction_type', '837P')
+                segment_id = error.get('segment', '')
+                
+                # Query RAG for validation rules
+                rag_results = self.rag.query(
+                    f"What are the validation rules for {segment_id} in {transaction_type}?",
+                    transaction_type=transaction_type,
+                    doc_type="tr3",
+                    top_k=2
+                )
+                
+                # Enhance error with RAG context
+                if rag_results:
+                    error['rag_context'] = {
+                        'documentation': rag_results[0]['text'][:300],
+                        'source': rag_results[0]['source_doc'],
+                        'page': rag_results[0]['page'],
+                        'relevance': rag_results[0]['score']
+                    }
+                    
+                    # Add regulatory explanation
+                    if 'explanation' not in error or not error['explanation']:
+                        error['explanation'] = f"According to {rag_results[0]['source_doc']}: {rag_results[0]['text'][:200]}"
+                
+            except Exception as e:
+                # Gracefully handle RAG query failures
+                error['rag_error'] = str(e)
+        
+        # TODO: Implement LLM-based enhancement if available
         # This would use the LLM to:
         # - Generate more detailed explanations
         # - Provide context-aware suggestions

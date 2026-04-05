@@ -1,16 +1,24 @@
 """
 Explainer Agent
 Handles user questions about the EDI file, segments, errors, and fixes by calling the LLM service.
+
+Enhanced with RAG Knowledge System:
+- Provides answers grounded in TR3 implementation guides
+- References CMS processing manuals
+- Includes code definitions (ICD-10, CARC, RARC)
+- Cites specific documentation pages
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.services.ai.llm import get_llm_service
+from app.services.rag import RAGClient
 
 class ExplainerAgent:
-    """Agent for explaining EDI concepts, errors, and providing fixes."""
+    """Agent for explaining EDI concepts, errors, and providing fixes with RAG-powered context."""
     
     def __init__(self):
-        """Initialize the explainer agent with LLM service."""
+        """Initialize the explainer agent with LLM and RAG services."""
         self.llm = get_llm_service()
+        self.rag = RAGClient()  # RAG knowledge system
     
     def answer_edi_question(self, question: str, edi_context: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -39,24 +47,44 @@ class ExplainerAgent:
                 "question": question
             }
     
-    def explain_segment(self, segment_id: str, segment_content: Optional[str] = None) -> Dict[str, Any]:
+    def explain_segment(self, segment_id: str, segment_content: Optional[str] = None, transaction_type: str = "837P") -> Dict[str, Any]:
         """
-        Explain an EDI segment.
+        Explain an EDI segment using RAG documentation.
         
         Args:
-            segment_id: EDI segment ID (e.g., 'ISA', 'GS', 'ST', 'CLP')
+            segment_id: EDI segment ID (e.g., 'ISA', 'GS', 'ST', 'CLP', 'NM1')
             segment_content: Optional segment content for detailed explanation
+            transaction_type: Transaction type for context-specific explanation
         
         Returns:
-            Dict with segment explanation and metadata
+            Dict with segment explanation, structure, and RAG citations
         """
         try:
-            explanation = self.llm.explain_edi_segment(segment_id, segment_content)
+            # Query RAG for segment definition
+            rag_results = self.rag.query(
+                f"What is the {segment_id} segment structure and requirements in {transaction_type}?",
+                transaction_type=transaction_type,
+                top_k=2
+            )
+            
+            # Build RAG context
+            rag_definition = rag_results[0]['text'] if rag_results else ""
+            
+            # Get LLM explanation with RAG context
+            explanation = self.llm.explain_edi_segment(
+                segment_id, 
+                segment_content, 
+                context=rag_definition
+            )
+            
             return {
                 "success": True,
                 "type": "segment_explanation",
                 "segment_id": segment_id,
-                "explanation": explanation
+                "explanation": explanation,
+                "rag_definition": rag_definition[:500] if rag_definition else None,
+                "source": rag_results[0]['source_doc'] if rag_results else None,
+                "page": rag_results[0]['page'] if rag_results else None
             }
         except Exception as e:
             return {
