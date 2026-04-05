@@ -7,7 +7,9 @@ export default function Navbar() {
   return (
     <nav className="navbar" id="navbar">
       <div className="nav-container">
-        <div className="nav-brand">Health EDI</div>
+        <Link to="/" className="nav-brand" aria-label="Nexedi home">
+          <img className="brand-logo" src="/nexedi_logo_transparent%20(3).svg" alt="Nexedi" />
+        </Link>
         <div className="nav-links">
           <Link to="/">Overview</Link>
           <a href="/#solution">Workflow</a>

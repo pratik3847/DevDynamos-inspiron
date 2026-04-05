@@ -121,6 +121,16 @@ body {
   font-size: 1.125rem;
   letter-spacing: -0.02em;
   color: #fff;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.brand-logo {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
 }
 
 .nav-links {

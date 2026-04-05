@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, FileUp, FileText, CheckSquare, Wrench, 
-  BarChart, Activity, Settings, Sun, Moon, ChevronLeft, ChevronRight, LogOut
+  BarChart, Settings, Sun, Moon, ChevronLeft, ChevronRight, LogOut
 } from 'lucide-react';
 import PipelineTracker from './PipelineTracker';
 import EddieAssistant from './EddieAssistant';
@@ -12,6 +12,7 @@ import './DashboardLayout.css';
 export default function DashboardLayout() {
   const { user, logoutState } = useAuth();
   const navigate = useNavigate();
+  const brandSrc = '/nexedi_logo_transparent%20(3).svg';
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -52,11 +53,16 @@ export default function DashboardLayout() {
       
       {/* Sidebar navigation */}
       <div className={`dashboard-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ width: isSidebarCollapsed ? '72px' : '260px', display: 'flex', flexDirection: 'column' }}>
-        <div className="dashboard-brand" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-          <div style={{ width: '32px', height: '32px', background: 'var(--accent-blue)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Activity size={18} color="#fff" />
-          </div>
-          <span className="brand-text ui-serif" style={{ fontWeight: 700, fontSize: '1.25rem' }} onClick={() => navigate('/')}>EDI Flow</span>
+        <div className="dashboard-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="brand-button"
+            onClick={() => navigate('/')}
+            aria-label="Go to home"
+          >
+            <img className="brand-logo" src={brandSrc} alt="Nexedi" />
+          </button>
+          <span className="brand-text" style={{ fontWeight: 600, fontSize: '1rem' }}>Nexedi</span>
           <button
             type="button"
             className="sidebar-collapse"

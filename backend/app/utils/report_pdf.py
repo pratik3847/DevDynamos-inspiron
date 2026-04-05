@@ -28,6 +28,15 @@ def _escape_pre(text: str) -> str:
     )
 
 
+def _escape_html(text: str) -> str:
+    return (
+        _safe_str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
 def _safe_str(v: Any) -> str:
     if v is None:
         return ""
@@ -42,6 +51,11 @@ def _compact_text(s: Any, max_len: int = 240) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 1].rstrip() + "…"
+
+
+def _cell(text: Any, style: ParagraphStyle, max_len: int = 240) -> Paragraph:
+    compact = _compact_text(text, max_len)
+    return Paragraph(_escape_html(compact), style)
 
 
 def _first_non_empty(*values: Any) -> str:
@@ -225,6 +239,12 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         spaceBefore=12,
         spaceAfter=6,
     )
+    h3_style = ParagraphStyle(
+        "SectionSubHeader",
+        parent=styles["Heading3"],
+        spaceBefore=8,
+        spaceAfter=4,
+    )
     meta_style = ParagraphStyle(
         "Meta",
         parent=styles["Normal"],
@@ -238,6 +258,48 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         fontSize=9,
         leading=12,
     )
+    cell_style = ParagraphStyle(
+        "Cell",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        wordWrap="CJK",
+    )
+    cell_small_style = ParagraphStyle(
+        "CellSmall",
+        parent=styles["Normal"],
+        fontSize=7.5,
+        leading=9,
+        wordWrap="CJK",
+    )
+    header_style = ParagraphStyle(
+        "TableHeader",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=10,
+        textColor=colors.white,
+        alignment=1,
+        fontName="Helvetica-Bold",
+    )
+    label_style = ParagraphStyle(
+        "Label",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        fontName="Helvetica-Bold",
+    )
+    pre_style = ParagraphStyle(
+        "Pre",
+        parent=styles["Normal"],
+        fontName="Courier",
+        fontSize=7.5,
+        leading=9,
+        wordWrap="CJK",
+    )
+
+    def _bullet_block(items: List[str]) -> Paragraph:
+        text = "<br/>".join(f"- {_escape_html(item)}" for item in items)
+        return Paragraph(text, small_style)
 
     story = []
     story.append(Paragraph("EDI Validation & Auto-Fix Report", title_style))
@@ -302,9 +364,22 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
     else:
         story.append(Paragraph("Final status: Remaining issues require attention before the EDI can be considered compliant.", small_style))
 
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("How to Use This Report", h3_style))
+    story.append(
+        _bullet_block(
+            [
+                "Start with Structural issues first; they can invalidate the entire file.",
+                "Review Business and External issues next, prioritizing Critical and Error severity.",
+                "Apply deterministic fixes first, then review AI suggestions, and flag manual items for payer review.",
+            ]
+        )
+    )
+
     # 3. Validation Results (grouped)
     story.append(Spacer(1, 14))
     story.append(Paragraph("Validation Results", h_style))
+    story.append(Paragraph("Issues are grouped by layer to speed up triage.", small_style))
 
     grouped = _group_issues_by_layer(original_issues)
 
@@ -314,16 +389,23 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         if not items:
             story.append(Paragraph("No issues found.", small_style))
             return
-        rows = [["ID", "Severity", "Layer", "Segment", "Element", "Description"]]
+        rows = [[
+            Paragraph("ID", header_style),
+            Paragraph("Severity", header_style),
+            Paragraph("Layer", header_style),
+            Paragraph("Segment", header_style),
+            Paragraph("Element", header_style),
+            Paragraph("Description", header_style),
+        ]]
         for it in items[:250]:
             rows.append(
                 [
-                    _compact_text(it.get("id"), 30),
-                    _compact_text(it.get("severity"), 10),
-                    _compact_text(it.get("layer"), 12),
-                    _compact_text(it.get("segment"), 8),
-                    _compact_text(it.get("element"), 8),
-                    _compact_text(it.get("description"), 120),
+                    _cell(it.get("id"), cell_style, 30),
+                    _cell(it.get("severity"), cell_style, 12),
+                    _cell(it.get("layer"), cell_style, 12),
+                    _cell(it.get("segment"), cell_style, 12),
+                    _cell(it.get("element"), cell_style, 12),
+                    _cell(it.get("description"), cell_style, 240),
                 ]
             )
         tbl = Table(
@@ -363,6 +445,7 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
 
     # 4. Fix Classification Summary
     story.append(Paragraph("Fix Classification Summary", h_style))
+    story.append(Paragraph("Use this section to prioritize fixes by automation level.", small_style))
     if not fix_suggestions:
         story.append(Paragraph("No fix suggestions available.", small_style))
     else:
@@ -375,16 +458,22 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         if not auto_fixes:
             story.append(Paragraph("No deterministic fixes available.", small_style))
         else:
-            rows = [["Fix ID", "Target", "Before", "After", "Status"]]
+            rows = [[
+                Paragraph("Fix ID", header_style),
+                Paragraph("Target", header_style),
+                Paragraph("Before", header_style),
+                Paragraph("After", header_style),
+                Paragraph("Status", header_style),
+            ]]
             for f in auto_fixes[:200]:
                 target = f"{_safe_str(f.get('segmentId') or f.get('segment'))} · {_safe_str(f.get('elementId') or f.get('element') or f.get('field'))}"
                 rows.append(
                     [
-                        _compact_text(f.get("id"), 30),
-                        _compact_text(target, 26),
-                        _compact_text(f.get("original"), 22),
-                        _compact_text(f.get("suggested"), 22),
-                        _compact_text(f.get("status"), 10),
+                        _cell(f.get("id"), cell_style, 30),
+                        _cell(target, cell_style, 40),
+                        _cell(f.get("original"), cell_style, 30),
+                        _cell(f.get("suggested"), cell_style, 30),
+                        _cell(f.get("status"), cell_style, 12),
                     ]
                 )
             tbl = Table(rows, colWidths=[0.9 * inch, 1.5 * inch, 1.2 * inch, 1.2 * inch, 0.8 * inch], repeatRows=1)
@@ -412,17 +501,23 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
         if not ai_fixes:
             story.append(Paragraph("No AI-suggested fixes pending approval.", small_style))
         else:
-            rows = [["Fix ID", "Confidence", "Target", "Suggested Action", "Reasoning"]]
+            rows = [[
+                Paragraph("Fix ID", header_style),
+                Paragraph("Confidence", header_style),
+                Paragraph("Target", header_style),
+                Paragraph("Suggested Action", header_style),
+                Paragraph("Reasoning", header_style),
+            ]]
             for f in ai_fixes[:200]:
                 target = f"{_safe_str(f.get('segmentId') or f.get('segment'))} · {_safe_str(f.get('elementId') or f.get('element') or f.get('field'))}"
                 action = _safe_str(f.get("operation") or "Update element")
                 rows.append(
                     [
-                        _compact_text(f.get("id"), 30),
-                        _compact_text(f.get("confidence"), 10),
-                        _compact_text(target, 26),
-                        _compact_text(action, 26),
-                        _compact_text(f.get("reasoning"), 120),
+                        _cell(f.get("id"), cell_style, 30),
+                        _cell(f.get("confidence"), cell_style, 12),
+                        _cell(target, cell_style, 36),
+                        _cell(action, cell_style, 36),
+                        _cell(f.get("reasoning"), cell_style, 260),
                     ]
                 )
             tbl = Table(rows, colWidths=[0.9 * inch, 0.8 * inch, 1.35 * inch, 1.25 * inch, 1.25 * inch], repeatRows=1)
@@ -451,7 +546,14 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             story.append(Paragraph("No manual review items identified.", small_style))
         else:
             story.append(Paragraph("These items cannot be safely auto-fixed and require human validation.", small_style))
-            rows = [["Issue ID", "Target", "Message", "Current Value", "Why not auto-fixed", "Recommended Action"]]
+            rows = [[
+                Paragraph("Issue ID", header_style),
+                Paragraph("Target", header_style),
+                Paragraph("Message", header_style),
+                Paragraph("Current Value", header_style),
+                Paragraph("Why not auto-fixed", header_style),
+                Paragraph("Recommended Action", header_style),
+            ]]
             issues_by_id = {str(i.get("id")): i for i in orig_norm if i.get("id")}
             for f in manual_fixes[:200]:
                 err_id = _safe_str(f.get("errorId") or "")
@@ -463,12 +565,12 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
                 rec = "Verify using authoritative source (registry/payer rules) and update accordingly."
                 rows.append(
                     [
-                        _compact_text(err_id, 30),
-                        _compact_text(target, 26),
-                        _compact_text(msg, 85),
-                        _compact_text(cur, 22),
-                        _compact_text(why, 85),
-                        _compact_text(rec, 70),
+                        _cell(err_id, cell_small_style, 30),
+                        _cell(target, cell_small_style, 40),
+                        _cell(msg, cell_small_style, 180),
+                        _cell(cur, cell_small_style, 40),
+                        _cell(why, cell_small_style, 180),
+                        _cell(rec, cell_small_style, 120),
                     ]
                 )
             tbl = Table(rows, colWidths=[0.8 * inch, 1.0 * inch, 1.45 * inch, 0.85 * inch, 1.35 * inch, 1.05 * inch], repeatRows=1)
@@ -493,7 +595,7 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             story.append(tbl)
 
         # 5. Detailed Fix Cards (AI + Manual)
-        story.append(Spacer(1, 14))
+        story.append(PageBreak())
         story.append(Paragraph("Detailed Fix Cards", h_style))
         issues_by_id = {str(i.get("id")): i for i in orig_norm if i.get("id")}
 
@@ -509,15 +611,15 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
                 auto_fix_label = "Not Possible"
 
             rows = [
-                ["Issue ID", _compact_text(err_id or "-", 60)],
-                ["Segment · Element", _compact_text(f"{seg} · {el}", 120)],
-                ["Confidence", _compact_text(conf + "%", 30)],
-                ["Validation Issue", _compact_text(issue.get("description") or "-", 240)],
-                ["Suggested Fix", _compact_text(_safe_str(f.get("operation") or "Update element value"), 200)],
-                ["Reasoning", _compact_text(_safe_str(f.get("reasoning") or "-"), 260)],
-                ["Current Value", _compact_text(_safe_str(issue.get("value") or f.get("original") or "-"), 200)],
-                ["Replacement Value", _compact_text(_safe_str(f.get("suggested") or "-"), 200)],
-                ["Auto Fix", auto_fix_label],
+                [Paragraph("Issue ID", label_style), _cell(err_id or "-", cell_style, 80)],
+                [Paragraph("Segment · Element", label_style), _cell(f"{seg} · {el}", cell_style, 160)],
+                [Paragraph("Confidence", label_style), _cell(conf + "%", cell_style, 40)],
+                [Paragraph("Validation Issue", label_style), _cell(issue.get("description") or "-", cell_style, 320)],
+                [Paragraph("Suggested Fix", label_style), _cell(_safe_str(f.get("operation") or "Update element value"), cell_style, 260)],
+                [Paragraph("Reasoning", label_style), _cell(_safe_str(f.get("reasoning") or "-"), cell_style, 320)],
+                [Paragraph("Current Value", label_style), _cell(_safe_str(issue.get("value") or f.get("original") or "-"), cell_style, 260)],
+                [Paragraph("Replacement Value", label_style), _cell(_safe_str(f.get("suggested") or "-"), cell_style, 260)],
+                [Paragraph("Auto Fix", label_style), _cell(auto_fix_label, cell_style, 60)],
             ]
             card = Table(rows, colWidths=[1.5 * inch, 4.1 * inch])
             bg = colors.HexColor("#FEF2F2") if classification == "manual" else colors.HexColor("#F9FAFB")
@@ -544,12 +646,17 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             if isinstance(f, dict):
                 _fix_card(f)
 
-    story.append(Spacer(1, 14))
+    story.append(PageBreak())
     story.append(Paragraph("Changes Log", h_style))
     if not changes_log:
         story.append(Paragraph("No changes applied yet.", small_style))
     else:
-        changes_rows = [["Timestamp", "Target", "Old", "New"]]
+        changes_rows = [[
+            Paragraph("Timestamp", header_style),
+            Paragraph("Target", header_style),
+            Paragraph("Old", header_style),
+            Paragraph("New", header_style),
+        ]]
         for c in changes_log[:300]:
             if not isinstance(c, dict):
                 continue
@@ -561,10 +668,10 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             target = f"{_safe_str(c.get('segmentId'))} · {_safe_str(c.get('elementId'))}"
             changes_rows.append(
                 [
-                    _compact_text(ts_str, 28),
-                    _compact_text(target, 30),
-                    _compact_text(c.get("old"), 40),
-                    _compact_text(c.get("new"), 40),
+                    _cell(ts_str, cell_style, 40),
+                    _cell(target, cell_style, 40),
+                    _cell(c.get("old"), cell_style, 60),
+                    _cell(c.get("new"), cell_style, 60),
                 ]
             )
 
@@ -612,7 +719,7 @@ def build_fix_report_pdf(*, session: Dict[str, Any]) -> bytes:
             truncated += "\n… (truncated)"
         pre = _escape_pre(truncated).replace("\n", "<br/>")
         story.append(Spacer(1, 8))
-        story.append(Paragraph(f"<font name='Courier' size='8'>{pre}</font>", small_style))
+        story.append(Paragraph(pre, pre_style))
 
     # 8. Technical Insights
     story.append(Spacer(1, 14))
