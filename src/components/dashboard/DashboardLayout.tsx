@@ -92,9 +92,6 @@ export default function DashboardLayout() {
             <NavLink to="/dashboard/835" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="834 Dashboard">
               <BarChart size={18} /> <span className="nav-label">834 Dashboard</span>
             </NavLink>
-            <NavLink to="/dashboard/835-parser" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="835 Remittance Parser">
-              <FileText size={18} /> <span className="nav-label">835 Parser</span>
-            </NavLink>
             <NavLink to="/dashboard/834" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} title="835 Dashboard">
               <BarChart size={18} /> <span className="nav-label">835 Dashboard</span>
             </NavLink>

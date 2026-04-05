@@ -1,217 +1,156 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, Filter, Users } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Filter } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
-import { MemberEnrollmentSummaryMember } from '../services/types';
 
-type MaintenanceMeta = {
+interface ClaimRecord {
+  key: string;
+  claimId: string;
+  patientName: string;
+  billedAmount: number;
+  paidAmount: number;
+  patientResponsibility: number;
+  statusCode: string;
+  statusLabel: string;
+  statusMeta: StatusMeta;
+  adjustments: AdjustmentRecord[];
+  hasAdjustments: boolean;
+}
+
+interface AdjustmentRecord {
+  groupCode: string;
+  reasonCode: string;
+  amount: number;
+  explanation?: string;
+}
+
+type StatusMeta = {
   label: string;
-  tone: string;
+  color: string;
   bg: string;
   border: string;
 };
 
-type MemberRecord = {
-  key: string;
-  name: string;
-  memberId: string;
-  maintenanceCode: string;
-  maintenanceMeta: MaintenanceMeta;
-  relationshipCode: string;
-  hasCob: boolean;
-  dependents: MemberRecord[];
-  familyGroup: string;
-};
-
-const MAINTENANCE_MAP: Record<string, MaintenanceMeta> = {
-  '021': {
-    label: '021 Addition',
-    tone: '#1E8E3E',
+const STATUS_MAP: Record<string, StatusMeta> = {
+  '1': {
+    label: 'Processed as Billed',
+    color: '#1E8E3E',
     bg: 'rgba(30, 142, 62, 0.14)',
     border: 'rgba(30, 142, 62, 0.35)',
   },
-  '024': {
-    label: '024 Cancellation',
-    tone: '#C5221F',
-    bg: 'rgba(197, 34, 31, 0.14)',
-    border: 'rgba(197, 34, 31, 0.35)',
-  },
-  '001': {
-    label: '001 Change',
-    tone: '#B36B00',
+  '2': {
+    label: 'Processed with Adjustments',
+    color: '#B36B00',
     bg: 'rgba(179, 107, 0, 0.14)',
     border: 'rgba(179, 107, 0, 0.35)',
   },
-  '030': {
-    label: '030 Audit',
-    tone: '#5F6368',
+  '3': {
+    label: 'Denied',
+    color: '#C5221F',
+    bg: 'rgba(197, 34, 31, 0.14)',
+    border: 'rgba(197, 34, 31, 0.35)',
+  },
+  '4': {
+    label: 'Secondary Payer',
+    color: '#5F6368',
     bg: 'rgba(95, 99, 104, 0.16)',
     border: 'rgba(95, 99, 104, 0.35)',
   },
 };
 
-const DEFAULT_MAINTENANCE: MaintenanceMeta = {
-  label: 'Unknown',
-  tone: 'var(--text-secondary)',
+const DEFAULT_STATUS: StatusMeta = {
+  label: 'Unknown Status',
+  color: 'var(--text-secondary)',
   bg: 'rgba(127, 127, 127, 0.12)',
   border: 'rgba(127, 127, 127, 0.3)',
 };
 
-function getElementValue(segment: any, position: number): string {
-  const byPos = segment?.elements?.find((el: any) => String(el?.position) === String(position).padStart(2, '0'));
-  if (byPos?.value != null) return String(byPos.value).trim();
+function parseClaimsFromSession(parsedJson: any): ClaimRecord[] {
+  // Try to get claims from different possible structures
+  const claims = parsedJson?.claims || parsedJson?.parsed_data?.claims || [];
+  
+  if (!Array.isArray(claims)) return [];
 
-  const byIndex = segment?.elements?.[position - 1];
-  if (byIndex?.value != null) return String(byIndex.value).trim();
-
-  return '';
-}
-
-function getMemberDisplayName(block: any[]): { name: string; memberId: string } {
-  const nm1 = block.find((seg) => seg?.segmentId === 'NM1');
-  const lastOrOrg = getElementValue(nm1, 3);
-  const first = getElementValue(nm1, 4);
-  const memberIdFromNm1 = getElementValue(nm1, 9);
-
-  const name = [lastOrOrg, first].filter(Boolean).join(', ') || lastOrOrg || 'Unknown Member';
-
-  const refMember = block.find((seg) => seg?.segmentId === 'REF' && getElementValue(seg, 1) === '0F');
-  const memberIdFromRef = getElementValue(refMember, 2);
-
-  return {
-    name,
-    memberId: memberIdFromRef || memberIdFromNm1 || '-',
-  };
-}
-
-function parseMembersFromSegments(segments: any[]): MemberRecord[] {
-  const blocks: any[][] = [];
-  let current: any[] = [];
-
-  for (const segment of segments) {
-    if (segment?.segmentId === 'INS') {
-      if (current.length > 0) blocks.push(current);
-      current = [segment];
-    } else if (current.length > 0) {
-      current.push(segment);
-    }
-  }
-
-  if (current.length > 0) blocks.push(current);
-
-  const parsedMembers = blocks.map((block, index) => {
-    const ins = block[0];
-    const ins01 = getElementValue(ins, 1);
-    const ins02 = getElementValue(ins, 2);
-    const ins03 = getElementValue(ins, 3);
-
-    const { name, memberId } = getMemberDisplayName(block);
-
-    const hasCob = block.some((seg) => {
-      const id = String(seg?.segmentId || '').toUpperCase();
-      return id === 'COB' || id === 'OI' || id === 'SBR' || String(seg?.raw || '').includes('2320');
-    });
-
-    const maintenanceMeta = MAINTENANCE_MAP[ins03] || { ...DEFAULT_MAINTENANCE, label: ins03 ? `${ins03} Unknown` : 'Unknown' };
+  return claims.map((claim: any, index: number) => {
+    const statusCode = String(claim.claim_status_code || claim.statusCode || '');
+    const statusMeta = STATUS_MAP[statusCode] || DEFAULT_STATUS;
+    
+    const adjustments = (claim.adjustments || []).map((adj: any) => ({
+      groupCode: adj.group_code || adj.groupCode || '',
+      reasonCode: adj.reason_code || adj.reasonCode || '',
+      amount: parseFloat(adj.adjustment_amount || adj.amount || 0),
+      explanation: adj.explanation || ''
+    }));
 
     return {
-      key: `m_${index}_${memberId}`,
-      name,
-      memberId,
-      maintenanceCode: ins03,
-      maintenanceMeta,
-      relationshipCode: ins02 || ins01,
-      hasCob,
-      dependents: [],
-      familyGroup: '-',
-    } as MemberRecord;
-  });
-
-  const families: MemberRecord[] = [];
-  let currentSubscriber: MemberRecord | null = null;
-  let familyCounter = 0;
-
-  for (const member of parsedMembers) {
-    const isSubscriber = member.relationshipCode === 'Y' || member.relationshipCode === '18' || member.relationshipCode === '01';
-
-    if (isSubscriber || !currentSubscriber) {
-      familyCounter += 1;
-      member.familyGroup = `Family ${familyCounter}`;
-      families.push(member);
-      currentSubscriber = member;
-    } else {
-      member.familyGroup = currentSubscriber.familyGroup;
-      currentSubscriber.dependents.push(member);
-    }
-  }
-
-  return families;
-}
-
-function mapBackendSummaryFamilies(families: MemberEnrollmentSummaryMember[] | undefined): MemberRecord[] {
-  if (!Array.isArray(families)) return [];
-
-  const mapMember = (m: MemberEnrollmentSummaryMember): MemberRecord => {
-    const maintenanceCode = String(m.maintenanceCode || '');
-    const maintenanceMeta = MAINTENANCE_MAP[maintenanceCode]
-      || { ...DEFAULT_MAINTENANCE, label: m.maintenanceLabel || (maintenanceCode ? `${maintenanceCode} Unknown` : 'Unknown') };
-
-    return {
-      key: m.key || `m_${m.memberId}_${m.name}`,
-      name: m.name || 'Unknown Member',
-      memberId: m.memberId || '-',
-      maintenanceCode,
-      maintenanceMeta,
-      relationshipCode: m.relationshipCode || '',
-      hasCob: !!m.hasCob,
-      dependents: Array.isArray(m.dependents) ? m.dependents.map(mapMember) : [],
-      familyGroup: m.familyGroup || '-',
+      key: `claim_${index}_${claim.claim_control_number || claim.claimId || index}`,
+      claimId: claim.claim_control_number || claim.claimId || `CLM${index}`,
+      patientName: claim.patient_name || claim.patientName || 'Unknown Patient',
+      billedAmount: parseFloat(claim.total_billed_amount || claim.billedAmount || 0),
+      paidAmount: parseFloat(claim.total_paid_amount || claim.paidAmount || 0),
+      patientResponsibility: parseFloat(claim.patient_responsibility_amount || claim.patientResponsibility || 0),
+      statusCode,
+      statusLabel: statusMeta.label,
+      statusMeta,
+      adjustments,
+      hasAdjustments: adjustments.length > 0,
     };
-  };
-
-  return families.map(mapMember);
+  });
 }
 
 export default function Dashboard835() {
   const { activeSession, isLoading } = useSession();
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const [showCobOnly, setShowCobOnly] = useState(false);
+  const [showAdjustedOnly, setShowAdjustedOnly] = useState(false);
 
-  const families = useMemo(() => {
-    const backendFamilies = mapBackendSummaryFamilies(activeSession?.memberEnrollmentSummary?.families);
-    const parsed = backendFamilies.length > 0
-      ? backendFamilies
-      : parseMembersFromSegments(activeSession?.parsedJson?.segments || []);
+  const claims = useMemo(() => {
+    if (!activeSession?.parsedJson) return [];
+    
+    const allClaims = parseClaimsFromSession(activeSession.parsedJson);
+    
+    if (!showAdjustedOnly) return allClaims;
+    
+    return allClaims.filter(claim => claim.hasAdjustments);
+  }, [activeSession?.parsedJson, showAdjustedOnly]);
 
-    if (!showCobOnly) return parsed;
-
-    return parsed
-      .map((family) => ({
-        ...family,
-        dependents: family.dependents.filter((d) => d.hasCob),
-      }))
-      .filter((family) => family.hasCob || family.dependents.length > 0);
-  }, [activeSession, showCobOnly]);
-
-  const totalMembers = useMemo(
-    () => families.reduce((acc, f) => acc + 1 + f.dependents.length, 0),
-    [families]
-  );
-
-  const totalCob = useMemo(
-    () => families.reduce((acc, f) => acc + (f.hasCob ? 1 : 0) + f.dependents.filter((d) => d.hasCob).length, 0),
-    [families]
-  );
+  const totalClaims = claims.length;
+  const totalBilled = claims.reduce((sum, claim) => sum + claim.billedAmount, 0);
+  const totalPaid = claims.reduce((sum, claim) => sum + claim.paidAmount, 0);
+  const totalAdjustments = claims.filter(claim => claim.hasAdjustments).length;
 
   const toggleExpand = (key: string) => {
-    setExpandedRows((prev) => ({ ...prev, [key]: !prev[key] }));
+    setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const explainAdjustment = async (reasonCode: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/parser/explain-adjustment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          carc_code: reasonCode,
+          context: `Claim adjustment in remittance file ${activeSession?.filename}`
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`CARC-${reasonCode}: ${data.explanation}`);
+      }
+    } catch (error) {
+      console.error('Error explaining adjustment:', error);
+    }
   };
 
   if (!activeSession) {
     return (
       <div className="dash-card" style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <h2 style={{ marginBottom: '8px' }}>834 Dashboard</h2>
+        <h2 style={{ marginBottom: '8px' }}>835 Remittance Dashboard</h2>
         <p style={{ color: 'var(--text-secondary)' }}>
-          Upload/select a session first to render Member Enrollment Summary.
+          Upload/select an 835 remittance file first to view payment analysis.
         </p>
       </div>
     );
@@ -221,9 +160,9 @@ export default function Dashboard835() {
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: '1.55rem', fontWeight: 700, marginBottom: '8px' }}>834 Dashboard</h1>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 700, marginBottom: '8px' }}>835 Remittance Dashboard</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
-            834 Feature: Member Enrollment Summary with maintenance-state badges, dependent rollup, and COB visibility.
+            File: <strong>{activeSession.filename}</strong> - Payment remittance with claim-level details and AI explanations.
           </p>
         </div>
 
@@ -232,106 +171,93 @@ export default function Dashboard835() {
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={showCobOnly}
-              onChange={(e) => setShowCobOnly(e.target.checked)}
+              checked={showAdjustedOnly}
+              onChange={(e) => setShowAdjustedOnly(e.target.checked)}
               style={{ accentColor: '#f59e0b' }}
             />
-            <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Show Only Members with COB</span>
+            <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Show Only Adjusted Claims</span>
           </label>
         </div>
       </div>
 
+      {/* Statistics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
         <div className="dash-card" style={{ padding: '16px' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Total Members</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{isLoading ? '...' : totalMembers}</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Total Claims</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{isLoading ? '...' : totalClaims}</div>
         </div>
         <div className="dash-card" style={{ padding: '16px' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Family Groups</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{isLoading ? '...' : families.length}</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Total Billed</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{isLoading ? '...' : `$${totalBilled.toLocaleString()}`}</div>
         </div>
         <div className="dash-card" style={{ padding: '16px' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>COB Active</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#f59e0b' }}>{isLoading ? '...' : totalCob}</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Total Paid</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#1E8E3E' }}>{isLoading ? '...' : `$${totalPaid.toLocaleString()}`}</div>
+        </div>
+        <div className="dash-card" style={{ padding: '16px' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Claims with Adjustments</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#f59e0b' }}>{isLoading ? '...' : totalAdjustments}</div>
         </div>
       </div>
 
+      {/* Claims Table */}
       <div className="dash-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Member</th>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Member ID</th>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Maintenance Type</th>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Family Group</th>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Dependents</th>
-                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>COB View</th>
+                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Claim</th>
+                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Patient</th>
+                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Status</th>
+                <th style={{ textAlign: 'right', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Billed</th>
+                <th style={{ textAlign: 'right', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Paid</th>
+                <th style={{ textAlign: 'right', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Patient Resp.</th>
+                <th style={{ textAlign: 'left', padding: '14px 16px', fontSize: '0.78rem', letterSpacing: '0.03em', color: 'var(--text-secondary)' }}>Adjustments</th>
               </tr>
             </thead>
             <tbody>
-              {!isLoading && families.length === 0 && (
+              {!isLoading && claims.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: '26px 16px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                    No Loop 2000 INS member records found for the current session.
+                  <td colSpan={7} style={{ padding: '26px 16px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    No claims found in the selected remittance file.
                   </td>
                 </tr>
               )}
 
-              {families.map((subscriber) => {
-                const isExpanded = !!expandedRows[subscriber.key];
-                const hasDependents = subscriber.dependents.length > 0;
+              {claims.map((claim) => {
+                const isExpanded = !!expandedRows[claim.key];
 
                 return (
-                  <React.Fragment key={subscriber.key}>
+                  <React.Fragment key={claim.key}>
                     <tr style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <button
                             type="button"
-                            onClick={() => hasDependents && toggleExpand(subscriber.key)}
-                            disabled={!hasDependents}
+                            onClick={() => claim.hasAdjustments && toggleExpand(claim.key)}
+                            disabled={!claim.hasAdjustments}
                             style={{
                               width: '24px',
                               height: '24px',
                               borderRadius: '6px',
                               border: '1px solid rgba(255,255,255,0.15)',
-                              background: hasDependents ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)',
-                              color: hasDependents ? 'var(--text-primary)' : 'var(--text-secondary)',
+                              background: claim.hasAdjustments ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)',
+                              color: claim.hasAdjustments ? 'var(--text-primary)' : 'var(--text-secondary)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              cursor: hasDependents ? 'pointer' : 'not-allowed',
+                              cursor: claim.hasAdjustments ? 'pointer' : 'not-allowed',
                             }}
-                            aria-label={hasDependents ? 'Toggle dependents' : 'No dependents'}
+                            aria-label={claim.hasAdjustments ? 'Toggle adjustments' : 'No adjustments'}
                           >
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </button>
 
-                          <span style={{ fontWeight: 700 }}>{subscriber.name}</span>
-
-                          {subscriber.hasCob && (
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                color: '#f59e0b',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                border: '1px solid rgba(245, 158, 11, 0.35)',
-                                background: 'rgba(245, 158, 11, 0.12)',
-                                padding: '3px 8px',
-                                borderRadius: '999px',
-                              }}
-                            >
-                              <AlertTriangle size={12} /> COB Active
-                            </span>
-                          )}
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{claim.claimId}</span>
                         </div>
                       </td>
 
-                      <td style={{ padding: '14px 16px', fontFamily: 'monospace' }}>{subscriber.memberId}</td>
+                      <td style={{ padding: '14px 16px' }}>{claim.patientName}</td>
 
                       <td style={{ padding: '14px 16px' }}>
                         <span
@@ -342,69 +268,82 @@ export default function Dashboard835() {
                             borderRadius: '999px',
                             fontSize: '0.76rem',
                             fontWeight: 700,
-                            color: subscriber.maintenanceMeta.tone,
-                            background: subscriber.maintenanceMeta.bg,
-                            border: `1px solid ${subscriber.maintenanceMeta.border}`,
+                            color: claim.statusMeta.color,
+                            background: claim.statusMeta.bg,
+                            border: `1px solid ${claim.statusMeta.border}`,
                           }}
                         >
-                          {subscriber.maintenanceMeta.label}
+                          {claim.statusMeta.label}
                         </span>
                       </td>
 
-                      <td style={{ padding: '14px 16px' }}>{subscriber.familyGroup}</td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        ${claim.billedAmount.toLocaleString()}
+                      </td>
 
-                      <td style={{ padding: '14px 16px' }}>
-                        {hasDependents ? (
-                          <span style={{ color: '#00D6FF', fontWeight: 700 }}>+ {subscriber.dependents.length} Dependents</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-secondary)' }}>No dependents</span>
-                        )}
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#1E8E3E', fontWeight: 700 }}>
+                        ${claim.paidAmount.toLocaleString()}
+                      </td>
+
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        ${claim.patientResponsibility.toLocaleString()}
                       </td>
 
                       <td style={{ padding: '14px 16px' }}>
-                        {subscriber.hasCob ? (
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Active</span>
+                        {claim.hasAdjustments ? (
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                            {claim.adjustments.length} Adjustment{claim.adjustments.length !== 1 ? 's' : ''}
+                          </span>
                         ) : (
                           <span style={{ color: 'var(--text-secondary)' }}>None</span>
                         )}
                       </td>
                     </tr>
 
-                    {isExpanded &&
-                      subscriber.dependents.map((dependent) => (
-                        <tr key={dependent.key} style={{ background: 'rgba(0, 214, 255, 0.05)' }}>
-                          <td style={{ padding: '12px 16px 12px 48px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <Users size={14} color="var(--text-secondary)" />
-                              <span>{dependent.name}</span>
-                              {dependent.hasCob && (
-                                <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: 700 }}>⚠ COB Active</span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{dependent.memberId}</td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '4px 10px',
-                                borderRadius: '999px',
-                                fontSize: '0.76rem',
-                                fontWeight: 700,
-                                color: dependent.maintenanceMeta.tone,
-                                background: dependent.maintenanceMeta.bg,
-                                border: `1px solid ${dependent.maintenanceMeta.border}`,
-                              }}
-                            >
-                              {dependent.maintenanceMeta.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 16px' }}>{dependent.familyGroup}</td>
-                          <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>Dependent</td>
-                          <td style={{ padding: '12px 16px' }}>{dependent.hasCob ? 'Active' : 'None'}</td>
-                        </tr>
-                      ))}
+                    {isExpanded && claim.adjustments.map((adjustment, adjIndex) => (
+                      <tr key={`${claim.key}_adj_${adjIndex}`} style={{ background: 'rgba(245, 158, 11, 0.05)' }}>
+                        <td style={{ padding: '12px 16px 12px 48px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={14} color="var(--text-secondary)" />
+                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Adjustment</span>
+                          </div>
+                        </td>
+                        
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ fontFamily: 'monospace' }}>
+                            {adjustment.groupCode}-{adjustment.reasonCode}
+                          </span>
+                        </td>
+                        
+                        <td style={{ padding: '12px 16px' }}>
+                          <button
+                            onClick={() => explainAdjustment(adjustment.reasonCode)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '0.75rem',
+                              backgroundColor: '#00D6FF',
+                              color: '#000',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                          >
+                            Explain
+                          </button>
+                        </td>
+                        
+                        <td colSpan={2} style={{ padding: '12px 16px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                          {adjustment.explanation || 'Click "Explain" for AI explanation'}
+                        </td>
+                        
+                        <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#f59e0b', fontWeight: 700 }}>
+                          -${Math.abs(adjustment.amount).toLocaleString()}
+                        </td>
+                        
+                        <td></td>
+                      </tr>
+                    ))}
                   </React.Fragment>
                 );
               })}
