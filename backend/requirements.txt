@@ -12,3 +12,8 @@ groq
 PyJWT
 reportlab
 pyx12
+
+# RAG Knowledge System Dependencies
+sentence-transformers
+qdrant-client
+torch
