@@ -32,6 +32,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setUser(null);
+      localStorage.removeItem('edi_auth_user');
+    };
+
+    window.addEventListener('edi-auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('edi-auth-expired', handleAuthExpired);
+  }, []);
+
   const loginState = (newUser: User) => {
     setUser(newUser);
     localStorage.setItem('edi_auth_user', JSON.stringify(newUser));

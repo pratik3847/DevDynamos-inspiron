@@ -3,9 +3,10 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, FileUp, FileText, CheckSquare, Wrench, 
-  BarChart, Activity, Settings, MessageSquare, Sun, Moon, ChevronLeft, ChevronRight, LogOut
+  BarChart, Activity, Settings, Sun, Moon, ChevronLeft, ChevronRight, LogOut
 } from 'lucide-react';
 import PipelineTracker from './PipelineTracker';
+import EddieAssistant from './EddieAssistant';
 import './DashboardLayout.css'; 
 
 export default function DashboardLayout() {
@@ -166,14 +167,7 @@ export default function DashboardLayout() {
           <Outlet />
         </div>
 
-        <button
-          type="button"
-          className="ai-fab"
-          onClick={() => navigate('/dashboard/chat')}
-          aria-label="Open AI assistant"
-        >
-          <MessageSquare size={18} />
-        </button>
+        <EddieAssistant theme={theme} />
       </div>
     </div>
   );

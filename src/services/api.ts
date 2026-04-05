@@ -3,6 +3,31 @@ import { Session, User, ChatMessage, FixSuggestion } from './types';
 // Reusing Types but dropping mock objects for actual API
 
 class ApiService {
+  private clearAuthState(): void {
+    localStorage.removeItem('edi_auth_user');
+    // Let auth context know token is no longer valid.
+    window.dispatchEvent(new CustomEvent('edi-auth-expired'));
+  }
+
+  private async parseApiError(response: Response, fallbackMessage: string): Promise<never> {
+    const err = await response.json().catch(() => ({} as any));
+    const detail = String(err?.detail || err?.message || fallbackMessage || 'Request failed');
+    const normalized = detail.toLowerCase();
+
+    if (
+      response.status === 401 ||
+      normalized.includes('token expired') ||
+      normalized.includes('expired token') ||
+      normalized.includes('signature has expired') ||
+      normalized.includes('invalid token')
+    ) {
+      this.clearAuthState();
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    throw new Error(detail);
+  }
+
   private getStoredToken(): string | null {
     const stored = localStorage.getItem('edi_auth_user');
     if (!stored) return null;
@@ -86,8 +111,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || 'Failed to load sessions');
+      return this.parseApiError(response, 'Failed to load sessions');
     }
 
     const data = await response.json();
@@ -101,7 +125,7 @@ class ApiService {
     });
     
     if (!response.ok) {
-      throw new Error('Session not found');
+      return this.parseApiError(response, 'Session not found');
     }
     
     const rawData = await response.json();
@@ -115,8 +139,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || 'Failed to delete session');
+      return this.parseApiError(response, 'Failed to delete session');
     }
   }
 
@@ -132,8 +155,7 @@ class ApiService {
     });
     
     if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+      return this.parseApiError(response, 'Upload failed');
     }
 
     const result = await response.json();

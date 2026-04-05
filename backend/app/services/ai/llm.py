@@ -275,6 +275,19 @@ class LLMService:
         except Exception as e:
             return self._format_groq_error("Error in conversation", e)
 
+    def eddie_chat(self, messages: List[Dict[str, str]], page_context: Optional[str] = None) -> str:
+        """Multi-turn Eddie assistant chat for dashboard workflows and API guidance."""
+        if not self._ensure_client():
+            return self._not_configured_message("eddie-chat")
+
+        system_prompt = self._get_eddie_system_prompt(page_context=page_context)
+        all_messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}] + list(messages)
+
+        try:
+            return self._chat_with_retry(all_messages, max_tokens=900, temperature=0.4)
+        except Exception as e:
+            return self._format_groq_error("Error in Eddie chat", e)
+
     @staticmethod
     def _get_edi_system_prompt() -> str:
         """Get the system prompt for EDI-specific assistance."""
@@ -302,6 +315,20 @@ When users ask about errors or issues, always:
 - Provide examples when possible
 
 Always maintain a professional, helpful tone and focus on practical solutions."""
+
+    @staticmethod
+    def _get_eddie_system_prompt(page_context: Optional[str] = None) -> str:
+        """System prompt for Eddie dashboard assistant."""
+        context_hint = f"Current page context: {page_context}." if page_context else ""
+        return (
+            "You are Eddie, the in-product AI assistant for an EDI dashboard platform. "
+            "You help users with parser, validation, fixing workflow, upload flow, and backend API usage. "
+            "Give concise, actionable answers in plain English. "
+            "If a user asks about API behavior, explain likely endpoints and payload patterns clearly. "
+            "Never invent that an operation succeeded unless the user explicitly confirms it. "
+            "When uncertain, ask one clarifying question. "
+            f"{context_hint}"
+        )
 
     @staticmethod
     def _format_error_analysis_prompt(error_message: str, edi_content: Optional[str] = None) -> str:

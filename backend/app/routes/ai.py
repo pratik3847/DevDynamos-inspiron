@@ -6,11 +6,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 from app.services.agents.explainer_agent import ExplainerAgent
+from app.services.ai.eddie_service import EddieAssistantService
 
 router = APIRouter(prefix="/api/ai", tags=["AI Assistant"])
 
 # Lazy initialization of explainer agent
 _explainer = None
+_eddie = None
 
 def get_explainer() -> ExplainerAgent:
     """Get or create the explainer agent (lazy initialization)."""
@@ -18,6 +20,14 @@ def get_explainer() -> ExplainerAgent:
     if _explainer is None:
         _explainer = ExplainerAgent()
     return _explainer
+
+
+def get_eddie() -> EddieAssistantService:
+    """Get or create Eddie assistant service (lazy initialization)."""
+    global _eddie
+    if _eddie is None:
+        _eddie = EddieAssistantService()
+    return _eddie
 
 
 # =============== Pydantic Models ===============
@@ -55,6 +65,12 @@ class ChatMessage(BaseModel):
 class MultiTurnChatRequest(BaseModel):
     """Model for multi-turn chat"""
     messages: List[ChatMessage]
+
+
+class EddieChatRequest(BaseModel):
+    """Model for Eddie chat request"""
+    messages: List[ChatMessage]
+    page_context: Optional[str] = None
 
 
 # =============== API Endpoints ===============
@@ -214,6 +230,35 @@ async def chat(request: MultiTurnChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/eddie-chat")
+async def eddie_chat(request: EddieChatRequest):
+    """
+    Multi-turn Eddie assistant conversation for dashboard users.
+
+    Args:
+        request: EddieChatRequest with list of messages and optional page context
+
+    Returns:
+        Response with Eddie assistant message
+    """
+    try:
+        eddie = get_eddie()
+        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        result = eddie.chat(messages=messages, page_context=request.page_context)
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to process Eddie chat"))
+
+        return {
+            "success": True,
+            "data": result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/health")
 async def health_check():
     """Health check endpoint for AI service."""
@@ -226,6 +271,7 @@ async def health_check():
             "/api/ai/analyze-error",
             "/api/ai/suggest-fixes",
             "/api/ai/chat",
+            "/api/ai/eddie-chat",
             "/api/ai/health"
         ]
     }
