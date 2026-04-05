@@ -24,6 +24,7 @@ export default function EddieAssistant({ theme }: EddieAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [showQuickTopics, setShowQuickTopics] = useState(true);
   const [messages, setMessages] = useState<EddieMessage[]>([
     {
       id: 'eddie-welcome',
@@ -247,27 +248,67 @@ export default function EddieAssistant({ theme }: EddieAssistantProps) {
           </div>
 
           <div style={{ padding: '0 14px 12px' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-              {QUICK_TOPICS.map((topic) => (
-                <button
-                  key={topic}
-                  type="button"
-                  onClick={() => openWithTopic(topic)}
+            {showQuickTopics && (
+              <div
+                style={{
+                  marginBottom: '10px',
+                  border: `1px solid ${palette.border}`,
+                  borderRadius: '12px',
+                  padding: '8px',
+                  background: palette.shell,
+                }}
+              >
+                <div
                   style={{
-                    border: `1px solid ${palette.border}`,
-                    background: palette.bubble,
-                    color: palette.text,
-                    borderRadius: '999px',
-                    padding: '6px 10px',
-                    fontSize: '0.72rem',
-                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
                   }}
                 >
-                  <Sparkles size={12} style={{ marginRight: '6px', verticalAlign: '-1px' }} />
-                  {topic}
-                </button>
-              ))}
-            </div>
+                  <span style={{ color: palette.muted, fontSize: '0.72rem', fontWeight: 700 }}>Suggestions</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickTopics(false)}
+                    style={{
+                      border: `1px solid ${palette.border}`,
+                      background: palette.bubble,
+                      color: palette.text,
+                      borderRadius: '8px',
+                      padding: '2px 8px',
+                      fontSize: '0.68rem',
+                      cursor: 'pointer',
+                    }}
+                    aria-label="Cut all suggestions"
+                    title="Close suggestions"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {QUICK_TOPICS.map((topic) => (
+                    <button
+                      key={topic}
+                      type="button"
+                      onClick={() => openWithTopic(topic)}
+                      style={{
+                        border: `1px solid ${palette.border}`,
+                        background: palette.bubble,
+                        color: palette.text,
+                        borderRadius: '999px',
+                        padding: '6px 10px',
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Sparkles size={12} style={{ marginRight: '6px', verticalAlign: '-1px' }} />
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <form
               onSubmit={(e) => {
