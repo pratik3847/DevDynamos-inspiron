@@ -5,6 +5,7 @@ from bson.errors import InvalidId
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import copy
+import re
 
 try:
     from app.database import sessions_collection
@@ -231,6 +232,147 @@ def _find_element_in_segment(seg: dict, element_id: str):
     return None
 
 
+def _derive_element_position(element_id: str) -> Optional[str]:
+    if not element_id:
+        return None
+    pos = str(element_id).strip()
+    if len(pos) == 2 and pos.isdigit():
+        return pos.zfill(2)
+    digits = "".join([c for c in pos if c.isdigit()])
+    if digits:
+        return digits[-2:].zfill(2)
+    return None
+
+
+def _collect_segment_ids(segments: List[Dict[str, Any]]) -> set:
+    ids = set()
+    for seg in segments or []:
+        if not isinstance(seg, dict):
+            continue
+        seg_id = seg.get("segmentId")
+        if seg_id:
+            ids.add(str(seg_id).upper())
+    return ids
+
+
+def _extract_segment_candidate(value: Optional[str], segment_ids: set) -> Optional[str]:
+    if not value:
+        return None
+    for token in re.findall(r"[A-Z][A-Z0-9]{1,2}", str(value).upper()):
+        if token in segment_ids:
+            return token
+    return None
+
+
+def _normalize_segment_id(
+    segment_id: Optional[str],
+    element_id: Optional[str],
+    segments: List[Dict[str, Any]],
+) -> Optional[str]:
+    if not segments:
+        return segment_id
+
+    segment_ids = _collect_segment_ids(segments)
+    if segment_id:
+        seg_norm = str(segment_id).upper()
+        if seg_norm in segment_ids:
+            return seg_norm
+
+    candidate = _extract_segment_candidate(segment_id, segment_ids)
+    if candidate:
+        return candidate
+
+    candidate = _extract_segment_candidate(element_id, segment_ids)
+    if candidate:
+        return candidate
+
+    return segment_id
+
+
+def _upsert_element_value(seg: dict, element_id: str, value: str) -> bool:
+    if not isinstance(seg, dict) or not element_id:
+        return False
+
+    el = _find_element_in_segment(seg, element_id)
+    if el is not None:
+        el["value"] = value
+        return True
+
+    position = _derive_element_position(element_id)
+    segment_id = seg.get("segmentId")
+    if not position or not segment_id:
+        return False
+
+    seg.setdefault("elements", []).append(
+        {
+            "id": f"{segment_id}{position}",
+            "position": position,
+            "value": value,
+        }
+    )
+    return True
+
+
+def _apply_element_change(
+    segments: List[Dict[str, Any]],
+    segment_id: Optional[str],
+    element_id: Optional[str],
+    new_value: str,
+    original_hint: Optional[str],
+):
+    if not segment_id or not element_id:
+        return False, False, None
+
+    segment_found = False
+    element_found = False
+    old_value = None
+    match_count = 0
+    fallback_seg = None
+    fallback_el = None
+
+    for seg in segments or []:
+        if not isinstance(seg, dict):
+            continue
+        if str(seg.get("segmentId") or "").upper() != str(segment_id).upper():
+            continue
+        segment_found = True
+        match_count += 1
+        if fallback_seg is None:
+            fallback_seg = seg
+
+        el = _find_element_in_segment(seg, element_id)
+        if el is not None and fallback_el is None:
+            fallback_el = el
+
+        if el is not None:
+            old_value = el.get("value")
+            if original_hint is not None and str(old_value) != original_hint:
+                continue
+            el["value"] = new_value
+            element_found = True
+            break
+
+        if original_hint is not None:
+            continue
+
+        if _upsert_element_value(seg, element_id, new_value):
+            old_value = None
+            element_found = True
+            break
+
+    # If we only have one matching segment, relax the original hint filter.
+    if not element_found and original_hint is not None and match_count == 1 and fallback_seg is not None:
+        if fallback_el is not None:
+            old_value = fallback_el.get("value")
+            fallback_el["value"] = new_value
+            element_found = True
+        elif _upsert_element_value(fallback_seg, element_id, new_value):
+            old_value = None
+            element_found = True
+
+    return segment_found, element_found, old_value
+
+
 def _resolve_fix_target(
     session: Dict[str, Any],
     segment_id: Optional[str],
@@ -339,7 +481,7 @@ async def apply_fix(request: ApplyFixRequest, current_user: dict = Depends(get_c
                 break
 
     # 3.5 Apply non-element operations
-    modified_json = session.get("modifiedJson") or {}
+    modified_json = session.get("modifiedJson") or session.get("parsedJson") or {}
     if isinstance(fix_obj, dict) and str(fix_obj.get("operation") or "").upper() == "INSERT_NM1_82_FROM_85":
         before_issues = session.get("validationErrors") or []
         changes_log = session.get("changesLog") or []
@@ -426,9 +568,6 @@ async def apply_fix(request: ApplyFixRequest, current_user: dict = Depends(get_c
 
     # 4. Modify "modifiedJson" assuming structured array configuration
     segments = modified_json.get("segments", [])
-    old_value = None
-    segment_found = False
-    element_found = False
     
     # Safe array operation; when there are multiple segments with the same id,
     # prefer the one whose current value matches the fix's original value.
@@ -436,20 +575,14 @@ async def apply_fix(request: ApplyFixRequest, current_user: dict = Depends(get_c
     if isinstance(fix_obj, dict) and fix_obj.get("original") not in (None, ""):
         original_hint = str(fix_obj.get("original"))
 
-    for seg in segments:
-        if str(seg.get("segmentId") or "").upper() != str(segment_id).upper():
-            continue
-        segment_found = True
-        el = _find_element_in_segment(seg, element_id)
-        if el is None:
-            continue
-        old_value = el.get("value")
-        if original_hint is not None and str(old_value) != original_hint:
-            # Not the intended occurrence; keep searching.
-            continue
-        el["value"] = new_value
-        element_found = True
-        break
+    segment_id = _normalize_segment_id(segment_id, element_id, segments)
+    segment_found, element_found, old_value = _apply_element_change(
+        segments,
+        segment_id,
+        element_id,
+        new_value,
+        original_hint,
+    )
 
     if not segment_found or not element_found:
         raise HTTPException(status_code=400, detail="Segment or element not found in session")
@@ -572,7 +705,7 @@ async def apply_fix_batch(request: ApplyFixBatchRequest, current_user: dict = De
         except Exception:
             pass
 
-    modified_json = session.get("modifiedJson") or {}
+    modified_json = session.get("modifiedJson") or session.get("parsedJson") or {}
     segments = modified_json.get("segments", [])
     before_issues = session.get("validationErrors") or []
     changes_log = session.get("changesLog") or []
@@ -607,19 +740,14 @@ async def apply_fix_batch(request: ApplyFixBatchRequest, current_user: dict = De
         if isinstance(fix_meta_obj, dict) and fix_meta_obj.get("original") not in (None, ""):
             original_hint = str(fix_meta_obj.get("original"))
 
-        for seg in segments:
-            if str(seg.get("segmentId") or "").upper() != str(segment_id).upper():
-                continue
-            segment_found = True
-            el = _find_element_in_segment(seg, element_id)
-            if el is None:
-                continue
-            old_value = el.get("value")
-            if original_hint is not None and str(old_value) != original_hint:
-                continue
-            el["value"] = new_value
-            element_found = True
-            break
+        segment_id = _normalize_segment_id(segment_id, element_id, segments)
+        segment_found, element_found, old_value = _apply_element_change(
+            segments,
+            segment_id,
+            element_id,
+            new_value,
+            original_hint,
+        )
 
         if not segment_found or not element_found:
             # Skip invalid fix items; keep batch resilient.

@@ -12,8 +12,18 @@ export default function FixPanel({ session, onFixApplied }: FixPanelProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   
   const pendingFixes = session.fixes.filter(f => f.status === 'pending');
+  const canApplyFix = (fix: Session['fixes'][number]) => {
+    if (!fix?.id) return false;
+    const operation = String(fix.operation || '').toUpperCase();
+    if (operation === 'NOOP') return false;
+    if (operation === 'INSERT_NM1_82_FROM_85') return true;
+    return Boolean(fix.suggested && fix.suggested !== '');
+  };
 
   const handleAccept = async (fix: Session['fixes'][number]) => {
+    if (!canApplyFix(fix)) {
+      return;
+    }
     setProcessing(fix.id);
     try {
       await api.applyFix(session.id, fix);
@@ -26,10 +36,11 @@ export default function FixPanel({ session, onFixApplied }: FixPanelProps) {
   };
 
   const handleAcceptAll = async () => {
-    if (pendingFixes.length === 0) return;
+    const applicable = pendingFixes.filter(canApplyFix);
+    if (applicable.length === 0) return;
     setProcessing('BATCH');
     try {
-      await api.applyFixBatch(session.id, pendingFixes);
+      await api.applyFixBatch(session.id, applicable);
       onFixApplied();
     } catch (e) {
       console.error(e);
@@ -50,14 +61,14 @@ export default function FixPanel({ session, onFixApplied }: FixPanelProps) {
     <div>
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#fff' }}>Suggested Corrections</h3>
-         {pendingFixes.length > 0 && (
+         {pendingFixes.filter(canApplyFix).length > 0 && (
            <button
              className="btn btn-primary"
              style={{ padding: '8px 16px', fontSize: '0.875rem' }}
              onClick={handleAcceptAll}
              disabled={processing === 'BATCH'}
            >
-             Accept All Pending ({pendingFixes.length})
+             Accept All Pending ({pendingFixes.filter(canApplyFix).length})
            </button>
          )}
       </div>
@@ -97,7 +108,7 @@ export default function FixPanel({ session, onFixApplied }: FixPanelProps) {
                       className="btn btn-accept"
                       style={{ padding: '8px 24px', fontSize: '0.875rem' }}
                       onClick={() => handleAccept(fix)}
-                      disabled={!fix.id || processing === fix.id}
+                      disabled={!canApplyFix(fix) || processing === fix.id}
                     >
                       {processing === fix.id ? 'Applying...' : 'Accept Fix'}
                     </button>

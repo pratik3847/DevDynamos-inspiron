@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, CheckCircle, AlertTriangle, AlertCircle, UploadCloud, CheckSquare, Wrench, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
@@ -44,22 +44,6 @@ export default function DashboardHome() {
       cleanCount,
     };
   }, [sessions]);
-
-  const recentSessions = useMemo(() => sessions.slice(0, 4), [sessions]);
-
-  const formatDate = (value?: string) => {
-    if (!value) return '—';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '—';
-    return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const statusClass = (status?: Session['status']) => {
-    if (status === 'Clean') return 'clean';
-    if (status === 'Requires Attention') return 'attention';
-    if (status === 'Processing') return 'processing';
-    return 'attention';
-  };
 
   const chartData = useMemo(() => {
     const days = 7;
@@ -129,11 +113,8 @@ export default function DashboardHome() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-      <div className="dash-header">
-        <div className="ui-kicker">Operations</div>
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Monitor your EDI processing pipeline and system health</p>
-      </div>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>Dashboard</h1>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Monitor your EDI processing pipeline and system health</p>
 
       {/* Metrics Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '24px' }}>
@@ -181,15 +162,7 @@ export default function DashboardHome() {
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
         {/* Chart View */}
         <div className="dash-card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <div>
-              <div className="ui-kicker">Last 7 Days</div>
-              <h3 className="ui-serif" style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '6px' }}>Processing Overview</h3>
-            </div>
-            <span className="ui-mono" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-              {sessions.length} sessions
-            </span>
-          </div>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '24px' }}>Processing Overview</h3>
           {loadError ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', minHeight: '300px' }}>
               {loadError}
@@ -268,24 +241,23 @@ export default function DashboardHome() {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Quick Actions */}
-          <div className="dash-card">
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '24px' }}>Quick Actions</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div 
-                onClick={() => navigate('/dashboard/upload')}
-                style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(11, 77, 214, 0.06)', padding: '16px', borderRadius: '12px', cursor: 'pointer', border: '1px solid rgba(11, 77, 214, 0.12)' }}
-              >
-                <div style={{ background: 'rgba(11, 77, 214, 0.12)', padding: '8px', borderRadius: '8px' }}><UploadCloud size={16} color="#0B4DD6" /></div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Upload Files</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Import EDI files for processing</div>
-                </div>
+        {/* Quick Actions */}
+        <div className="dash-card">
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '24px' }}>Quick Actions</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div 
+              onClick={() => navigate('/dashboard/upload')}
+              style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(0, 80, 255, 0.05)', padding: '16px', borderRadius: '12px', cursor: 'pointer', border: '1px solid rgba(0, 80, 255, 0.1)' }}
+            >
+              <div style={{ background: 'rgba(0, 80, 255, 0.1)', padding: '8px', borderRadius: '8px' }}><UploadCloud size={16} color="#0050FF" /></div>
+              <div style={{ flex: 1 }}>
+                 <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Upload Files</div>
+                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Import EDI files for processing</div>
               </div>
+            </div>
 
-              <div 
-                onClick={() => navigate('/dashboard/validation')}
+            <div 
+              onClick={() => navigate('/dashboard/validation')}
               style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(52, 199, 89, 0.05)', padding: '16px', borderRadius: '12px', cursor: 'pointer', border: '1px solid rgba(52, 199, 89, 0.1)' }}
             >
               <div style={{ background: 'rgba(52, 199, 89, 0.1)', padding: '8px', borderRadius: '8px' }}><CheckSquare size={16} color="#34C759" /></div>
@@ -295,8 +267,8 @@ export default function DashboardHome() {
               </div>
             </div>
             
-              <div 
-                onClick={() => navigate('/dashboard/fix-assistant')}
+            <div 
+              onClick={() => navigate('/dashboard/fix-assistant')}
               style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(255, 149, 0, 0.05)', padding: '16px', borderRadius: '12px', cursor: 'pointer', border: '1px solid rgba(255, 149, 0, 0.1)' }}
             >
               <div style={{ background: 'rgba(255, 149, 0, 0.1)', padding: '8px', borderRadius: '8px' }}><Wrench size={16} color="#FF9500" /></div>
@@ -315,55 +287,6 @@ export default function DashboardHome() {
                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Download processed files</div>
               </div>
             </div>
-            </div>
-          </div>
-
-          {/* Recent Sessions */}
-          <div className="dash-card">
-            <div className="card-header-flex">
-              <div>
-                <div className="ui-kicker">Recent</div>
-                <div className="card-title ui-serif">Latest Sessions</div>
-              </div>
-              <span className="ui-mono" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                Showing {recentSessions.length} of {sessions.length}
-              </span>
-            </div>
-            {loading ? (
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Loading sessions...</div>
-            ) : recentSessions.length === 0 ? (
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>No sessions yet.</div>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Status</th>
-                    <th>Issues</th>
-                    <th>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSessions.map((session) => (
-                    <tr key={session.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{session.filename}</div>
-                        <div className="ui-mono" style={{ color: 'var(--text-secondary)' }}>{session.id.slice(0, 8)}</div>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${statusClass(session.status)}`}>
-                          {session.status}
-                        </span>
-                      </td>
-                      <td className="ui-mono">
-                        {session.originalErrors?.length ?? session.errors.length}
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{formatDate(session.updatedAt || session.createdAt || session.uploadDate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
         </div>
       </div>

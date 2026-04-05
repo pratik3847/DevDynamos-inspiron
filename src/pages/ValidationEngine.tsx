@@ -1,4 +1,4 @@
-import { MouseEvent, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Play, CheckCircle2, AlertTriangle, AlertCircle, ChevronDown, ChevronRight, FileCode, Wrench, FileText } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 
@@ -6,10 +6,8 @@ export default function ValidationEngine() {
   const { activeSession, isLoading, refreshSession } = useSession();
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   const [activeFilter, setActiveFilter] = useState<'all' | 'errors' | 'warnings'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFixableOnly, setShowFixableOnly] = useState(false);
 
-  const toggleNode = (id: string, e: MouseEvent<HTMLDivElement>) => {
+  const toggleNode = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -29,6 +27,7 @@ export default function ValidationEngine() {
   const uploadedIssues = activeSession.originalErrors || activeSession.errors || [];
   const errors = uploadedIssues.filter(e => e.severity === 'Error' || e.severity === 'Critical');
   const warnings = uploadedIssues.filter(e => e.severity === 'Warning');
+  const filteredIssues = activeFilter === 'errors' ? errors : activeFilter === 'warnings' ? warnings : uploadedIssues;
   const segmentsWithIssues = new Set(uploadedIssues.map(e => e.segment));
   const validSegments = totalSegments - segmentsWithIssues.size;
   const healthScore = totalSegments > 0 ? Math.round((validSegments / totalSegments) * 100) : 100;
@@ -42,34 +41,12 @@ export default function ValidationEngine() {
     return map;
   }, [activeSession.fixes]);
 
-  const filteredIssues = useMemo(() => {
-    const base = activeFilter === 'errors' ? errors : activeFilter === 'warnings' ? warnings : uploadedIssues;
-    const query = searchQuery.trim().toLowerCase();
-    return base.filter((err) => {
-      if (showFixableOnly && !fixesByErrorId.get(String(err.id || ''))) return false;
-      if (!query) return true;
-      const haystack = [
-        err.id,
-        err.loop,
-        err.segment,
-        err.element,
-        err.description,
-        err.rule,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [activeFilter, errors, warnings, uploadedIssues, fixesByErrorId, searchQuery, showFixableOnly]);
-
   return (
     <div className="edi-page">
       <div className="edi-page__header">
         <div>
-          <div className="ui-kicker">Validation Suite</div>
-          <h1 className="page-title" style={{ marginBottom: '8px' }}>Validation Engine</h1>
-          <p className="page-subtitle">Validate EDI files against HIPAA and custom rules</p>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>Validation Engine</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Validate EDI files against HIPAA and custom rules</p>
         </div>
         <div className="edi-page__actions">
           <button className="btn outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={refreshSession} disabled={isLoading}>
@@ -184,7 +161,6 @@ export default function ValidationEngine() {
                                <div key={eIdx} className="validation-structure__detail">
                                  <AlertCircle size={12} color="#FF3B30" />
                                  <span className="validation-structure__code">{err.id || 'ERR'}</span>
-                                  {err.loop ? <span className="validation-structure__loop">Loop {err.loop}</span> : null}
                                  <span className="validation-structure__text">{err.description}</span>
                                </div>
                              ))}
@@ -219,19 +195,6 @@ export default function ValidationEngine() {
                   >
                     Warnings <span className="validation-filter__count">{warnings.length}</span>
                   </button>
-                  <input
-                    className="edi-search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search segments, loops, IDs"
-                  />
-                  <button
-                    className={`toggle-pill ${showFixableOnly ? 'is-active' : ''}`}
-                    onClick={() => setShowFixableOnly((prev) => !prev)}
-                    type="button"
-                  >
-                    Has Fix
-                  </button>
                 </div>
               </div>
 
@@ -255,14 +218,7 @@ export default function ValidationEngine() {
                               <span className="validation-issue__id">{err.id || `ERR-${i + 1}`}</span>
                               <span className="validation-issue__segment">Segment: {err.segment}</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {fix ? (
-                              <span className="status-badge review">Fix Available</span>
-                            ) : (
-                              <span className="status-badge manual">Manual</span>
-                            )}
-                            <span className={`validation-issue__badge ${tone}`}>{err.severity}</span>
-                          </div>
+                          <span className={`validation-issue__badge ${tone}`}>{err.severity}</span>
                         </div>
                         <div className="validation-issue__desc">{err.description}</div>
                         
