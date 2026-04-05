@@ -14,17 +14,17 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 
 ```mermaid
 flowchart LR
-  FE[Vite + React UI]
-  API[FastAPI API]
-  DB[(MongoDB)]
-  Parser[Parser (pyx12)]
-  Validator[Validation Engine]
-  Fixer[Fix Agent]
-  Rules[Rules Service]
-  Reports[Report Builder]
-  RAG[(Qdrant)]
-  Embeddings[Embedding Model]
-  LLM[Groq LLM]
+  FE["Vite + React UI"];
+  API["FastAPI API"];
+  DB[(MongoDB)];
+  Parser["Parser: pyx12"];
+  Validator["Validation Engine"];
+  Fixer["Fix Agent"];
+  Rules["Rules Service"];
+  Reports["Report Builder"];
+  RAG[(Qdrant)];
+  Embeddings["Embedding Model"];
+  LLM["Groq LLM"];
 
   FE -->|/auth /files /fix /rules /api| API
   API --> Parser
