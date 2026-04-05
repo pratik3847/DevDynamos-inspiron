@@ -9,6 +9,7 @@ except ImportError:
     sessions_collection = None
 
 from app.services.pipeline.pipeline import run_pipeline
+from app.services.enrollment import build_834_member_enrollment_summary
 
 try:
     from app.services.pipeline.pipeline import fix_agent as pipeline_fix_agent
@@ -85,6 +86,32 @@ def _backfill_original_errors_if_needed(session: dict) -> dict:
         session["originalValidationErrors"] = session.get("validationErrors") or []
     return session
 
+
+def _ensure_member_summary(session: dict) -> dict:
+    if not isinstance(session, dict):
+        return session
+
+    existing = session.get("memberEnrollmentSummary")
+    if existing:
+        return session
+
+    parsed = session.get("modifiedJson") or session.get("parsedJson") or {}
+    try:
+        session["memberEnrollmentSummary"] = build_834_member_enrollment_summary(parsed)
+    except Exception:
+        session["memberEnrollmentSummary"] = {
+            "type": "834-member-enrollment-summary",
+            "families": [],
+            "stats": {
+                "totalMembers": 0,
+                "totalSubscribers": 0,
+                "totalDependents": 0,
+                "totalCob": 0,
+                "familyCount": 0,
+            },
+        }
+    return session
+
 def _serialize_session(session: dict) -> dict:
     session = dict(session)
     if "_id" in session:
@@ -153,16 +180,54 @@ async def get_session(session_id: str, current_user: dict = Depends(get_current_
 
     session = _backfill_original_errors_if_needed(session)
     session = _refresh_session_fixes_if_needed(session)
+    session = _ensure_member_summary(session)
     # Persist refreshed fixes so UI/export sees real values.
     try:
         sessions_collection.update_one(
             {"_id": obj_id},
-            {"$set": {"fixes": session.get("fixes", []), "originalValidationErrors": session.get("originalValidationErrors") or [], "updatedAt": datetime.utcnow()}},
+            {
+                "$set": {
+                    "fixes": session.get("fixes", []),
+                    "originalValidationErrors": session.get("originalValidationErrors") or [],
+                    "memberEnrollmentSummary": session.get("memberEnrollmentSummary"),
+                    "updatedAt": datetime.utcnow(),
+                }
+            },
         )
     except Exception:
         pass
 
     return _serialize_session(session)
+
+
+@router.get("/session/{session_id}/835-dashboard")
+async def get_835_dashboard_summary(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Return centralized 834 Loop 2000 member summary for Dashboard 835 page."""
+    try:
+        obj_id = ObjectId(session_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+
+    if sessions_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not configured")
+
+    session = sessions_collection.find_one({"_id": obj_id, "userId": current_user["userId"]})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _ensure_member_summary(session)
+    try:
+        sessions_collection.update_one(
+            {"_id": obj_id},
+            {"$set": {"memberEnrollmentSummary": session.get("memberEnrollmentSummary"), "updatedAt": datetime.utcnow()}},
+        )
+    except Exception:
+        pass
+
+    return {
+        "sessionId": session_id,
+        "summary": session.get("memberEnrollmentSummary"),
+    }
 
 
 @router.get("/sessions")
@@ -279,10 +344,18 @@ async def download_report(
 
     session = _backfill_original_errors_if_needed(session)
     session = _refresh_session_fixes_if_needed(session)
+    session = _ensure_member_summary(session)
     try:
         sessions_collection.update_one(
             {"_id": obj_id},
-            {"$set": {"fixes": session.get("fixes", []), "originalValidationErrors": session.get("originalValidationErrors") or [], "updatedAt": datetime.utcnow()}},
+            {
+                "$set": {
+                    "fixes": session.get("fixes", []),
+                    "originalValidationErrors": session.get("originalValidationErrors") or [],
+                    "memberEnrollmentSummary": session.get("memberEnrollmentSummary"),
+                    "updatedAt": datetime.utcnow(),
+                }
+            },
         )
     except Exception:
         pass

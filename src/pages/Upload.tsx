@@ -7,11 +7,21 @@ import { Session } from '../services/types';
 export default function Upload() {
   const [isUploading, setIsUploading] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedSessionDetail, setSelectedSessionDetail] = useState<Session | null>(null);
   const [isLoadingSelected, setIsLoadingSelected] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const { setActiveSessionId } = useSession();
+
+  const toErrorMessage = (err: unknown): string => {
+    const msg = err instanceof Error ? err.message : String(err || 'Unknown error');
+    const lower = msg.toLowerCase();
+    if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+      return 'Backend is unreachable. Please ensure the API server is running on port 8000.';
+    }
+    return msg;
+  };
 
   const extractEdiMetadata = (session: Session | null) => {
     const segments: any[] = session?.parsedJson?.segments ?? [];
@@ -52,11 +62,12 @@ export default function Upload() {
 
   const loadSelectedSession = async (sessionId: string) => {
     setIsLoadingSelected(true);
+    setErrorMessage(null);
     try {
       const full = await api.getSession(sessionId);
       setSelectedSessionDetail(full);
     } catch (e) {
-      console.error(e);
+      setErrorMessage(toErrorMessage(e));
       setSelectedSessionDetail(null);
     } finally {
       setIsLoadingSelected(false);
@@ -65,6 +76,7 @@ export default function Upload() {
 
   useEffect(() => {
     const load = async () => {
+      setErrorMessage(null);
       try {
         const data = await api.getSessions();
         setSessions(data);
@@ -74,7 +86,7 @@ export default function Upload() {
           await loadSelectedSession(firstId);
         }
       } catch (e) {
-        console.error(e);
+        setErrorMessage(toErrorMessage(e));
       } finally {
         setIsLoadingSessions(false);
       }
@@ -89,6 +101,7 @@ export default function Upload() {
   };
 
   const handleDelete = async (sessionId: string) => {
+    setErrorMessage(null);
     try {
       await api.deleteSession(sessionId);
       setSessions(prev => {
@@ -107,13 +120,14 @@ export default function Upload() {
         return next;
       });
     } catch (e) {
-      console.error(e);
+      setErrorMessage(toErrorMessage(e));
     }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setIsUploading(true);
+      setErrorMessage(null);
       try {
         const sessionPayload = await api.uploadFile(e.target.files[0]);
         setSessions(prev => [sessionPayload, ...prev]);
@@ -122,7 +136,7 @@ export default function Upload() {
         setActiveSessionId(sessionPayload.id);
         await loadSelectedSession(sessionPayload.id);
       } catch (err) {
-        console.error(err);
+        setErrorMessage(toErrorMessage(err));
       } finally {
         setIsUploading(false);
       }
@@ -133,6 +147,22 @@ export default function Upload() {
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>Upload Files</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Import EDI files for processing. Supports .edi, .txt, .dat, .x12, and ZIP batch files.</p>
+
+      {errorMessage && (
+        <div
+          role="alert"
+          className="dash-card"
+          style={{
+            marginBottom: '16px',
+            border: '1px solid rgba(255, 99, 99, 0.45)',
+            background: 'rgba(255, 99, 99, 0.1)',
+            color: '#ffd0d0',
+            fontSize: '0.9rem',
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
 
       <div
         className="dash-card"

@@ -10,7 +10,7 @@ Enhanced with RAG Knowledge System:
 """
 from typing import Optional, Dict, Any, List
 from app.services.ai.llm import get_llm_service
-from app.services.rag import RAGClient
+
 
 class ExplainerAgent:
     """Agent for explaining EDI concepts, errors, and providing fixes with RAG-powered context."""
@@ -18,7 +18,13 @@ class ExplainerAgent:
     def __init__(self):
         """Initialize the explainer agent with LLM and RAG services."""
         self.llm = get_llm_service()
-        self.rag = RAGClient()  # RAG knowledge system
+        self.rag = None
+        try:
+            # Keep RAG optional so core API routes still boot if vector deps are unavailable.
+            from app.services.rag import RAGClient
+            self.rag = RAGClient()
+        except Exception:
+            self.rag = None
     
     def answer_edi_question(self, question: str, edi_context: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -61,11 +67,13 @@ class ExplainerAgent:
         """
         try:
             # Query RAG for segment definition
-            rag_results = self.rag.query(
-                f"What is the {segment_id} segment structure and requirements in {transaction_type}?",
-                transaction_type=transaction_type,
-                top_k=2
-            )
+            rag_results = []
+            if self.rag is not None:
+                rag_results = self.rag.query(
+                    f"What is the {segment_id} segment structure and requirements in {transaction_type}?",
+                    transaction_type=transaction_type,
+                    top_k=2
+                )
             
             # Build RAG context
             rag_definition = rag_results[0]['text'] if rag_results else ""

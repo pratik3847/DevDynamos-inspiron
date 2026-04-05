@@ -1,6 +1,15 @@
 from datetime import datetime
+from typing import Optional, Dict, Any
 
-def create_session(userId: str, fileName: str, edi_text: str, parsed, errors, fixes) -> dict:
+def create_session(
+    userId: str,
+    fileName: str,
+    edi_text: str,
+    parsed,
+    errors,
+    fixes,
+    member_enrollment_summary: Optional[Dict[str, Any]] = None,
+) -> dict:
     """
     Returns a structured dictionary representing an EDI session,
     prepared for MongoDB insertion.
@@ -22,6 +31,7 @@ def create_session(userId: str, fileName: str, edi_text: str, parsed, errors, fi
         "fixes": fixes,
         "chatHistory": [],
         "changesLog": [],
+        "memberEnrollmentSummary": member_enrollment_summary,
         "createdAt": now,
         "updatedAt": now,
     }

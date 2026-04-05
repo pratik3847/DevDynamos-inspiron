@@ -65,4 +65,30 @@ export interface Session {
   fixes: FixSuggestion[];
   chatHistory: ChatMessage[];
   agents: AgentStatus[];
+  memberEnrollmentSummary?: MemberEnrollmentSummary;
+}
+
+export interface MemberEnrollmentSummaryMember {
+  key: string;
+  name: string;
+  memberId: string;
+  maintenanceCode: string;
+  maintenanceLabel?: string;
+  relationshipCode: string;
+  hasCob: boolean;
+  dependents: MemberEnrollmentSummaryMember[];
+  familyGroup: string;
+}
+
+export interface MemberEnrollmentSummary {
+  type: string;
+  generatedAt?: string;
+  families: MemberEnrollmentSummaryMember[];
+  stats?: {
+    totalMembers: number;
+    totalSubscribers: number;
+    totalDependents: number;
+    totalCob: number;
+    familyCount: number;
+  };
 }

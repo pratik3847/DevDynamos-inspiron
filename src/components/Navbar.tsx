@@ -1,9 +1,8 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Navbar() {
-  const { isAuthenticated, user, logoutState } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <nav className="navbar" id="navbar">

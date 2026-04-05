@@ -10,12 +10,30 @@ class ApiService {
   }
 
   private async parseApiError(response: Response, fallbackMessage: string): Promise<never> {
-    const err = await response.json().catch(() => ({} as any));
-    const detail = String(err?.detail || err?.message || fallbackMessage || 'Request failed');
+    let detail = fallbackMessage || 'Request failed';
+
+    try {
+      const cloned = response.clone();
+      const err = await cloned.json().catch(() => ({} as any));
+      if (err?.detail || err?.message) {
+        detail = String(err?.detail || err?.message);
+      } else {
+        const text = (await response.text().catch(() => '')).trim();
+        if (text) detail = text;
+      }
+    } catch {
+      const text = (await response.text().catch(() => '')).trim();
+      if (text) detail = text;
+    }
+
     const normalized = detail.toLowerCase();
 
     if (
       response.status === 401 ||
+      response.status === 403 ||
+      normalized.includes('authorization required') ||
+      normalized.includes('not authenticated') ||
+      normalized.includes('forbidden') ||
       normalized.includes('token expired') ||
       normalized.includes('expired token') ||
       normalized.includes('signature has expired') ||
@@ -271,7 +289,7 @@ class ApiService {
   }
 
   // AI Chat
-  async sendChatMessage(sessionId: string, message: string): Promise<ChatMessage> {
+  async sendChatMessage(_sessionId: string, message: string): Promise<ChatMessage> {
     const response = await fetch('/api/ai/chat', {
         method: 'POST',
       headers: this.getHeaders(),
@@ -385,7 +403,7 @@ class ApiService {
       }
 
       // Map Fixes
-      let fixes = [];
+      let fixes: any[] = [];
       const fixSource = backendObj.fixes || backendObj.fixSuggestions;
       if (fixSource && Array.isArray(fixSource)) {
         fixes = fixSource.map((f: any, idx: number) => ({
@@ -428,7 +446,8 @@ class ApiService {
           originalErrors: mappedOriginalErrors,
           fixes: fixes,
           chatHistory: backendObj.chatHistory || [],
-          agents: backendObj.agents || []
+          agents: backendObj.agents || [],
+          memberEnrollmentSummary: backendObj.memberEnrollmentSummary || null,
       };
   }
 }

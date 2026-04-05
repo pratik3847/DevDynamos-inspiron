@@ -1,6 +1,5 @@
-import React from 'react';
 import { ValidationError } from '../../services/types';
-import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 
 interface ValidationPanelProps {
   errors: ValidationError[];
