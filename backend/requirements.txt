@@ -17,3 +17,6 @@ pyx12
 sentence-transformers
 qdrant-client
 torch
+
+# 835 Parser Dependencies
+python-multipart>=0.0.6

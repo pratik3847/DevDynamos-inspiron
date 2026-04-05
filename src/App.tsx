@@ -12,6 +12,7 @@ import Upload from './pages/Upload'
 import ParserEngine from './pages/ParserEngine'
 import ValidationEngine from './pages/ValidationEngine'
 import FixAssistant from './pages/FixAssistant'
+import Dashboard834 from './pages/Dashboard834.tsx'
 import Dashboard835 from './pages/Dashboard835.tsx'
 import RuleBuilder from './pages/RuleBuilder'
 
@@ -73,8 +74,8 @@ function App() {
           <Route path="parser" element={<ParserEngine />} />
           <Route path="validation" element={<ValidationEngine />} />
           <Route path="fix-assistant" element={<FixAssistant />} />
-          <Route path="835" element={<Dashboard835 />} />
-          <Route path="834" element={<div style={{padding: '32px'}}>834 Dashboard (Module Loading...)</div>} />
+          <Route path="835" element={<Dashboard834 />} />
+          <Route path="834" element={<Dashboard835 />} />
           <Route path="rules" element={<RuleBuilder />} />
           <Route path="history" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Processing History</h2><p style={{color: '#999'}}>Full archive would go here.</p></div>} />
           <Route path="chat" element={<div style={{padding: '40px'}}><h2 style={{color: 'white'}}>Global AI Assistant</h2><p style={{color: '#999'}}>Cross-session query interface would go here.</p></div>} />
