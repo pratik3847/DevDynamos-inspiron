@@ -22,125 +22,110 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 ## Architecture at a glance
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff'}}}%%
+%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff', 'fontSize':'22px'}}}%%
 flowchart LR
-  subgraph Frontend["Frontend Layer (Vite + React)"]
-    UI_Dashboard["Dashboard<br/>Session List<br/>Upload Interface"]
-    UI_Upload["File Upload<br/>Drag & Drop<br/>Multi-file Support"]
-    UI_Validation["Validation View<br/>Error Display<br/>Warning Filters"]
-    UI_Fixer["Fix Assistant<br/>Apply/Batch Fixes<br/>Preview Changes"]
-    UI_835["835 Dashboard<br/>Payment Summary<br/>Claim Details"]
-    UI_Rules["Rules Manager<br/>Enable/Disable<br/>Custom Preferences"]
-    UI_Chat["Eddie Chat<br/>AI Assistant<br/>Context-Aware Help"]
+  subgraph Frontend["<b>Frontend Layer</b>"]
+    UI_Dashboard["<b>Dashboard</b><br/>Session List | Upload Interface"]
+    UI_Upload["<b>File Upload</b><br/>Drag Drop | Multi-file Support"]
+    UI_Validation["<b>Validation View</b><br/>Error Display | Warning Filters"]
+    UI_Fixer["<b>Fix Assistant</b><br/>Apply Batch Fixes | Preview Changes"]
+    UI_835["<b>835 Dashboard</b><br/>Payment Summary | Claim Details"]
+    UI_Rules["<b>Rules Manager</b><br/>Enable Disable | Custom Preferences"]
+    UI_Chat["<b>Eddie Chat</b><br/>AI Assistant | Context-Aware Help"]
   end
 
-  subgraph API_Layer["API Layer (FastAPI)"]
-    Auth_Service["Auth Service<br/>JWT Tokens<br/>User Sessions<br/>Signup/Login"]
-    File_Router["File Router<br/>Upload Handler<br/>Session Manager<br/>Download Service"]
-    Fix_Router["Fix Router<br/>Apply Fixes<br/>Batch Processing<br/>Validation Trigger"]
-    Rules_Router["Rules Router<br/>CRUD Operations<br/>Default Reset<br/>User Preferences"]
-    AI_Router["AI Router<br/>Question Handler<br/>Segment Explainer<br/>Error Analyzer"]
-    Parser_Router["835 Parser Router<br/>Upload 835<br/>Parse & Analyze<br/>Pattern Detection"]
+  subgraph API_Layer["<b>API Layer</b>"]
+    Auth_Service["<b>Auth Service</b><br/>JWT Tokens | User Sessions | Signup Login"]
+    File_Router["<b>File Router</b><br/>Upload Handler | Session Manager | Download Service"]
+    Fix_Router["<b>Fix Router</b><br/>Apply Fixes | Batch Processing | Validation Trigger"]
+    Rules_Router["<b>Rules Router</b><br/>CRUD Operations | Default Reset | User Preferences"]
+    AI_Router["<b>AI Router</b><br/>Question Handler | Segment Explainer | Error Analyzer"]
+    Parser_Router["<b>835 Parser Router</b><br/>Upload 835 | Parse Analyze | Pattern Detection"]
   end
 
-  subgraph Processing["Processing Engine"]
-    Parser_Main["Parser Service<br/>pyx12 Engine<br/>Fallback Parser<br/>Segment Tokenizer"]
-    Parser_Agent["Parser Agent<br/>RAG Enrichment<br/>Context Builder<br/>TR3 Lookup"]
-    
-    subgraph Validation_Layer["Validation Engine"]
-      Val_Structural["Structural Validator<br/>Segment Order<br/>Required Elements<br/>Data Types"]
-      Val_Business["Business Rules<br/>837/835/834 Logic<br/>Cross-Segment<br/>Amount Checks"]
-      Val_External["External Validator<br/>Code Lists<br/>TR3 Reference<br/>CMS Guidelines"]
-    end
-    
-    Val_Filter["Rule Filter<br/>Apply User Rules<br/>Severity Mapping<br/>Error Deduplication"]
-    
-    subgraph Fix_Engine["Fix Agent Engine"]
-      Fix_Deterministic["Deterministic Fixer<br/>Control Numbers<br/>Envelope Counts<br/>Calculated Fields"]
-      Fix_RAG["RAG-Enhanced Fixer<br/>TR3 Citations<br/>Best Practices<br/>Context Suggestions"]
-      Fix_Validator["Fix Validator<br/>Pre-Apply Check<br/>Impact Analysis<br/>Conflict Detection"]
-    end
-    
-    Report_Builder["Report Builder<br/>PDF Generator<br/>JSON MD HTML<br/>Change History<br/>Fix Summary"]
+  subgraph Processing["<b>Processing Engine</b>"]
+    Parser_Main["<b>Parser Service</b><br/>pyx12 Engine | Fallback Parser | Segment Tokenizer"]
+    Parser_Agent["<b>Parser Agent</b><br/>RAG Enrichment | Context Builder | TR3 Lookup"]
+    Val_Structural["<b>Structural Validator</b><br/>Segment Order | Required Elements | Data Types"]
+    Val_Business["<b>Business Rules</b><br/>837 835 834 Logic | Cross-Segment | Amount Checks"]
+    Val_External["<b>External Validator</b><br/>Code Lists | TR3 Reference | CMS Guidelines"]
+    Val_Filter["<b>Rule Filter</b><br/>Apply User Rules | Severity Mapping | Error Deduplication"]
+    Fix_Deterministic["<b>Deterministic Fixer</b><br/>Control Numbers | Envelope Counts | Calculated Fields"]
+    Fix_RAG["<b>RAG-Enhanced Fixer</b><br/>TR3 Citations | Best Practices | Context Suggestions"]
+    Fix_Validator["<b>Fix Validator</b><br/>Pre-Apply Check | Impact Analysis | Conflict Detection"]
+    Report_Builder["<b>Report Builder</b><br/>PDF Generator | JSON MD HTML | Change History | Fix Summary"]
   end
 
-  subgraph Data_Layer["Data Layer"]
-    MongoDB["MongoDB<br/>Collections:"]
-    DB_Users[("users<br/>Auth Data<br/>Credentials<br/>Preferences")]
-    DB_Sessions[("sessions<br/>Upload History<br/>Parsed JSON<br/>Validation State<br/>Fix Reports")]
-    DB_Rules[("rules<br/>User Rules<br/>Enabled/Disabled<br/>Custom Configs")]
+  subgraph Data_Layer["<b>Data Layer</b>"]
+    MongoDB["<b>MongoDB Collections</b>"]
+    DB_Users[("<b>users</b><br/>Auth Data | Credentials | Preferences")]
+    DB_Sessions[("<b>sessions</b><br/>Upload History | Parsed JSON | Validation State | Fix Reports")]
+    DB_Rules[("<b>rules</b><br/>User Rules | Enabled Disabled | Custom Configs")]
     MongoDB -.-> DB_Users
     MongoDB -.-> DB_Sessions
     MongoDB -.-> DB_Rules
   end
 
-  subgraph AI_Layer["AI & RAG Layer"]
-    Qdrant["Qdrant Vector DB<br/>240,054 Embeddings<br/>Similarity: 0.3 threshold"]
-    Embeddings["Sentence Transformers<br/>all-MiniLM-L6-v2<br/>384-dim vectors"]
-    
-    subgraph RAG_Sources["Knowledge Sources"]
-      RAG_TR3["TR3 Guides<br/>837/835/834<br/>Segment Specs<br/>Loop Structure"]
-      RAG_CMS["CMS Manuals<br/>Guidelines<br/>Compliance Rules<br/>Best Practices"]
-      RAG_Codes["Code Lists<br/>CARC/RARC<br/>Adjustment Codes<br/>Remark Codes"]
-    end
-    
-    Groq["Groq LLM<br/>Low Latency<br/>Context Window<br/>Auto Model Select"]
-    RAG_Sources --> Embeddings
+  subgraph AI_Layer["<b>AI & RAG Layer</b>"]
+    Qdrant["<b>Qdrant Vector DB</b><br/>240054 Embeddings | Similarity 0.3 threshold"]
+    Embeddings["<b>Sentence Transformers</b><br/>all-MiniLM-L6-v2 | 384-dim vectors"]
+    RAG_TR3["<b>TR3 Guides</b><br/>837 835 834 | Segment Specs | Loop Structure"]
+    RAG_CMS["<b>CMS Manuals</b><br/>Guidelines | Compliance Rules | Best Practices"]
+    RAG_Codes["<b>Code Lists</b><br/>CARC RARC | Adjustment Codes | Remark Codes"]
+    Groq["<b>Groq LLM</b><br/>Low Latency | Context Window | Auto Model Select"]
+    RAG_TR3 --> Embeddings
+    RAG_CMS --> Embeddings
+    RAG_Codes --> Embeddings
     Embeddings --> Qdrant
   end
 
   Frontend --> API_Layer
-  UI_Dashboard -->|POST /files/upload<br/>GET /files/sessions| File_Router
-  UI_Upload -->|Multipart Form<br/>EDI File Payload| File_Router
-  UI_Validation -->|GET /session/ID<br/>Filter Params| File_Router
-  UI_Fixer -->|POST /fix/apply<br/>POST /fix/apply-batch| Fix_Router
-  UI_835 -->|GET /835-dashboard<br/>Payment Summary| Parser_Router
-  UI_Rules -->|GET PUT /rules<br/>POST /rules/reset| Rules_Router
-  UI_Chat -->|POST /api/ai/eddie-chat<br/>Context History| AI_Router
-  UI_Dashboard -->|POST /auth/login<br/>POST /auth/signup| Auth_Service
-  
-  Auth_Service -->|JWT Token<br/>User Context| DB_Users
-  File_Router -->|Raw EDI<br/>File Metadata| Parser_Main
-  Parser_Main -->|Segment List<br/>Loop Hierarchy| Parser_Agent
-  Parser_Agent -->|Enriched Context<br/>TR3 References| Qdrant
-  Parser_Agent -->|Normalized JSON<br/>Segment Hierarchy| Val_Structural
-  
-  Val_Structural -->|Structural Results<br/>Element Errors| Val_Business
-  Val_Business -->|Business Results<br/>Logic Errors| Val_External
-  Val_External -->|External Results<br/>Code Errors| Val_Filter
-  Val_Filter -->|Query User Rules<br/>Enabled/Disabled| Rules_Router
-  Rules_Router <-->|CRUD Operations<br/>Default Sets| DB_Rules
-  Val_External -->|Code Lookup<br/>TR3 Validation| Qdrant
-  
-  Val_Filter -->|Filtered Errors<br/>Prioritized List| Fix_Deterministic
-  Fix_Deterministic -->|Concrete Fixes<br/>Calculated Values| Fix_RAG
-  Fix_RAG -->|RAG Context<br/>TR3 Citations| Qdrant
-  Fix_RAG -->|Enhanced Suggestions<br/>Reasoning| Fix_Validator
-  Fix_Router -->|Apply Fix Request<br/>Session ID + Fix| Fix_Validator
-  Fix_Validator -->|Validated Fix<br/>Impact Report| Parser_Main
-  Parser_Main -->|Regenerated EDI<br/>Modified JSON| Val_Structural
-  
-  Fix_Validator -->|Fix History<br/>Change Log| Report_Builder
-  Report_Builder -->|PDF JSON MD HTML<br/>Download URL| File_Router
-  File_Router <-->|Save/Load Sessions<br/>Upload State| DB_Sessions
-  Fix_Router <-->|Update Session<br/>Fix Reports| DB_Sessions
-  Parser_Agent <-->|Store Results<br/>Parsed Data| DB_Sessions
-  
-  AI_Router -->|Question Context<br/>Session Data| Groq
-  AI_Router -->|RAG Query<br/>Similarity Search| Qdrant
-  Groq -->|LLM Response<br/>Explanation| AI_Router
-  Parser_Router -->|835 Parse Request<br/>File Content| Parser_Main
-  Parser_Router -->|Pattern Analysis<br/>Claim Aggregation| Qdrant
-  Parser_Router <-->|In-Memory Store<br/>Demo Mode| DB_Sessions
-  UI_Validation -->|User Feedback<br/>Issue Report| AI_Router
-  Report_Builder -->|Audit Trail<br/>Compliance Report| DB_Sessions
-  Val_Filter -->|Statistics<br/>Error Trends| UI_Dashboard
+  UI_Dashboard --> File_Router
+  UI_Upload --> File_Router
+  UI_Validation --> File_Router
+  UI_Fixer --> Fix_Router
+  UI_835 --> Parser_Router
+  UI_Rules --> Rules_Router
+  UI_Chat --> AI_Router
+  UI_Dashboard --> Auth_Service
+  Auth_Service --> DB_Users
+  File_Router --> Parser_Main
+  Parser_Main --> Parser_Agent
+  Parser_Agent --> Qdrant
+  Parser_Agent --> Val_Structural
+  Val_Structural --> Val_Business
+  Val_Business --> Val_External
+  Val_External --> Val_Filter
+  Val_Filter --> Rules_Router
+  Rules_Router --> DB_Rules
+  Val_External --> Qdrant
+  Val_Filter --> Fix_Deterministic
+  Fix_Deterministic --> Fix_RAG
+  Fix_RAG --> Qdrant
+  Fix_RAG --> Fix_Validator
+  Fix_Router --> Fix_Validator
+  Fix_Validator --> Parser_Main
+  Parser_Main --> Val_Structural
+  Fix_Validator --> Report_Builder
+  Report_Builder --> File_Router
+  File_Router --> DB_Sessions
+  Fix_Router --> DB_Sessions
+  Parser_Agent --> DB_Sessions
+  AI_Router --> Groq
+  AI_Router --> Qdrant
+  Groq --> AI_Router
+  Parser_Router --> Parser_Main
+  Parser_Router --> Qdrant
+  Parser_Router --> DB_Sessions
+  UI_Validation --> AI_Router
+  Report_Builder --> DB_Sessions
+  Val_Filter --> UI_Dashboard
 
-  classDef frontendStyle fill:#ffffff,stroke:#0066cc,stroke-width:3px,color:#000000,font-size:16px
-  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:3px,color:#000000,font-size:16px
-  classDef processStyle fill:#ffffff,stroke:#6600cc,stroke-width:3px,color:#000000,font-size:16px
-  classDef dataStyle fill:#ffffff,stroke:#009933,stroke-width:3px,color:#000000,font-size:16px
-  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:3px,color:#000000,font-size:16px
+  classDef frontendStyle fill:#ffffff,stroke:#0066cc,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
+  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
+  classDef processStyle fill:#ffffff,stroke:#6600cc,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
+  classDef dataStyle fill:#ffffff,stroke:#009933,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
+  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
   
   class UI_Dashboard,UI_Upload,UI_Validation,UI_Fixer,UI_835,UI_Rules,UI_Chat frontendStyle
   class Auth_Service,File_Router,Fix_Router,Rules_Router,AI_Router,Parser_Router apiStyle
