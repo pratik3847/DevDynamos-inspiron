@@ -22,7 +22,7 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 ## Architecture at a glance
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff', 'fontSize':'32px', 'fontFamily':'Arial'}}}%%
+%%{init: {'theme':'dark', 'themeVariables': { 'darkMode': true, 'background':'#1e1e1e', 'primaryColor':'#2d2d2d', 'primaryTextColor':'#e0e0e0', 'primaryBorderColor':'#4a9eff', 'lineColor':'#6b6b6b', 'secondaryColor':'#3d3d3d', 'tertiaryColor':'#2d2d2d', 'fontSize':'32px', 'fontFamily':'Arial'}}}%%
 graph LR
   UI1["<b>DASHBOARD</b>"]
   UI2["<b>FILE UPLOAD</b>"]
@@ -114,11 +114,11 @@ graph LR
   V4 --> UI3
   UI3 --> A5
 
-  classDef uiStyle fill:#ffffff,stroke:#0066cc,stroke-width:5px,color:#000000,font-size:32px
-  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:5px,color:#000000,font-size:32px
-  classDef procStyle fill:#ffffff,stroke:#6600cc,stroke-width:5px,color:#000000,font-size:32px
-  classDef dbStyle fill:#ffffff,stroke:#009933,stroke-width:5px,color:#000000,font-size:32px
-  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:5px,color:#000000,font-size:32px
+  classDef uiStyle fill:#2d2d2d,stroke:#4a9eff,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef apiStyle fill:#2d2d2d,stroke:#9acd32,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef procStyle fill:#2d2d2d,stroke:#ffa500,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef dbStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef aiStyle fill:#2d2d2d,stroke:#9370db,stroke-width:3px,color:#e0e0e0,font-size:32px
   
   class UI1,UI2,UI3,UI4,UI5,UI6,UI7 uiStyle
   class A1,A2,A3,A4,A5,A6 apiStyle
