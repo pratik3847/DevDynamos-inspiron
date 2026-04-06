@@ -22,6 +22,7 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 ## Architecture at a glance
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff'}}}%%
 flowchart LR
   subgraph Frontend["Frontend Layer (Vite + React)"]
     UI_Dashboard["Dashboard<br/>Session List<br/>Upload Interface"]
@@ -135,11 +136,11 @@ flowchart LR
   Report_Builder -->|Audit Trail<br/>Compliance Report| DB_Sessions
   Val_Filter -->|Statistics<br/>Error Trends| UI_Dashboard
 
-  classDef frontendStyle fill:#e1f5ff,stroke:#01579b,stroke-width:3px,color:#000,font-size:16px
-  classDef apiStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000,font-size:16px
-  classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,color:#000,font-size:16px
-  classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,color:#000,font-size:16px
-  classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:3px,color:#000,font-size:16px
+  classDef frontendStyle fill:#ffffff,stroke:#0066cc,stroke-width:3px,color:#000000,font-size:16px
+  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:3px,color:#000000,font-size:16px
+  classDef processStyle fill:#ffffff,stroke:#6600cc,stroke-width:3px,color:#000000,font-size:16px
+  classDef dataStyle fill:#ffffff,stroke:#009933,stroke-width:3px,color:#000000,font-size:16px
+  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:3px,color:#000000,font-size:16px
   
   class UI_Dashboard,UI_Upload,UI_Validation,UI_Fixer,UI_835,UI_Rules,UI_Chat frontendStyle
   class Auth_Service,File_Router,Fix_Router,Rules_Router,AI_Router,Parser_Router apiStyle
