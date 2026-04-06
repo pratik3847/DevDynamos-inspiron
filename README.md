@@ -60,7 +60,7 @@ graph LR
   AI3["<b>TR3 GUIDES</b>"]
   AI4["<b>CMS MANUALS</b>"]
   AI5["<b>CODE LISTS</b>"]
-  AI6["<b>GROQ LLM</b>"]
+  AI6["<b>LLM</b>"]
   
   UI1 --> A2
   UI2 --> A2
