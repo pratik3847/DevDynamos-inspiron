@@ -22,7 +22,7 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 ## Architecture at a glance
 
 ```mermaid
-flowchart TB
+flowchart LR
   subgraph Frontend["Frontend Layer (Vite + React)"]
     UI_Dashboard["Dashboard<br/>Session List<br/>Upload Interface"]
     UI_Upload["File Upload<br/>Drag & Drop<br/>Multi-file Support"]
@@ -46,7 +46,7 @@ flowchart TB
     Parser_Main["Parser Service<br/>pyx12 Engine<br/>Fallback Parser<br/>Segment Tokenizer"]
     Parser_Agent["Parser Agent<br/>RAG Enrichment<br/>Context Builder<br/>TR3 Lookup"]
     
-    subgraph Validation_Layer["Validation Engine (3 Layers)"]
+    subgraph Validation_Layer["Validation Engine"]
       Val_Structural["Structural Validator<br/>Segment Order<br/>Required Elements<br/>Data Types"]
       Val_Business["Business Rules<br/>837/835/834 Logic<br/>Cross-Segment<br/>Amount Checks"]
       Val_External["External Validator<br/>Code Lists<br/>TR3 Reference<br/>CMS Guidelines"]
@@ -68,7 +68,6 @@ flowchart TB
     DB_Users[("users<br/>Auth Data<br/>Credentials<br/>Preferences")]
     DB_Sessions[("sessions<br/>Upload History<br/>Parsed JSON<br/>Validation State<br/>Fix Reports")]
     DB_Rules[("rules<br/>User Rules<br/>Enabled/Disabled<br/>Custom Configs")]
-    
     MongoDB -.-> DB_Users
     MongoDB -.-> DB_Sessions
     MongoDB -.-> DB_Rules
@@ -85,22 +84,11 @@ flowchart TB
     end
     
     Groq["Groq LLM<br/>Low Latency<br/>Context Window<br/>Auto Model Select"]
-    
     RAG_Sources --> Embeddings
     Embeddings --> Qdrant
   end
 
-  subgraph Processing_Flow["Data Processing Flow"]
-    Step1["1. Upload"]
-    Step2["2. Parse"]
-    Step3["3. Validate"]
-    Step4["4. Fix"]
-    Step5["5. Report"]
-    
-    Step1 --> Step2 --> Step3 --> Step4 --> Step5
-  end
-
-  %% Frontend to API connections
+  Frontend --> API_Layer
   UI_Dashboard -->|POST /files/upload<br/>GET /files/sessions| File_Router
   UI_Upload -->|Multipart Form<br/>EDI File Payload| File_Router
   UI_Validation -->|GET /session/ID<br/>Filter Params| File_Router
@@ -108,65 +96,50 @@ flowchart TB
   UI_835 -->|GET /835-dashboard<br/>Payment Summary| Parser_Router
   UI_Rules -->|GET PUT /rules<br/>POST /rules/reset| Rules_Router
   UI_Chat -->|POST /api/ai/eddie-chat<br/>Context History| AI_Router
-
-  %% Auth flows
   UI_Dashboard -->|POST /auth/login<br/>POST /auth/signup| Auth_Service
+  
   Auth_Service -->|JWT Token<br/>User Context| DB_Users
-
-  %% File upload and parsing flow
   File_Router -->|Raw EDI<br/>File Metadata| Parser_Main
   Parser_Main -->|Segment List<br/>Loop Hierarchy| Parser_Agent
   Parser_Agent -->|Enriched Context<br/>TR3 References| Qdrant
-  
-  %% Validation flow
   Parser_Agent -->|Normalized JSON<br/>Segment Hierarchy| Val_Structural
+  
   Val_Structural -->|Structural Results<br/>Element Errors| Val_Business
   Val_Business -->|Business Results<br/>Logic Errors| Val_External
   Val_External -->|External Results<br/>Code Errors| Val_Filter
-  
   Val_Filter -->|Query User Rules<br/>Enabled/Disabled| Rules_Router
   Rules_Router <-->|CRUD Operations<br/>Default Sets| DB_Rules
   Val_External -->|Code Lookup<br/>TR3 Validation| Qdrant
   
-  %% Fix flow
   Val_Filter -->|Filtered Errors<br/>Prioritized List| Fix_Deterministic
   Fix_Deterministic -->|Concrete Fixes<br/>Calculated Values| Fix_RAG
   Fix_RAG -->|RAG Context<br/>TR3 Citations| Qdrant
   Fix_RAG -->|Enhanced Suggestions<br/>Reasoning| Fix_Validator
-  
   Fix_Router -->|Apply Fix Request<br/>Session ID + Fix| Fix_Validator
   Fix_Validator -->|Validated Fix<br/>Impact Report| Parser_Main
   Parser_Main -->|Regenerated EDI<br/>Modified JSON| Val_Structural
   
-  %% Report generation
   Fix_Validator -->|Fix History<br/>Change Log| Report_Builder
   Report_Builder -->|PDF JSON MD HTML<br/>Download URL| File_Router
-  
-  %% Session persistence
   File_Router <-->|Save/Load Sessions<br/>Upload State| DB_Sessions
   Fix_Router <-->|Update Session<br/>Fix Reports| DB_Sessions
   Parser_Agent <-->|Store Results<br/>Parsed Data| DB_Sessions
   
-  %% AI assistant flows
   AI_Router -->|Question Context<br/>Session Data| Groq
   AI_Router -->|RAG Query<br/>Similarity Search| Qdrant
   Groq -->|LLM Response<br/>Explanation| AI_Router
-  
   Parser_Router -->|835 Parse Request<br/>File Content| Parser_Main
   Parser_Router -->|Pattern Analysis<br/>Claim Aggregation| Qdrant
   Parser_Router <-->|In-Memory Store<br/>Demo Mode| DB_Sessions
-
-  %% Feedback loops
   UI_Validation -->|User Feedback<br/>Issue Report| AI_Router
   Report_Builder -->|Audit Trail<br/>Compliance Report| DB_Sessions
   Val_Filter -->|Statistics<br/>Error Trends| UI_Dashboard
 
-  %% Styling
-  classDef frontendStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px,color:#000
-  classDef apiStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
-  classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-  classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
-  classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000
+  classDef frontendStyle fill:#e1f5ff,stroke:#01579b,stroke-width:3px,color:#000,font-size:16px
+  classDef apiStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000,font-size:16px
+  classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,color:#000,font-size:16px
+  classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,color:#000,font-size:16px
+  classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:3px,color:#000,font-size:16px
   
   class UI_Dashboard,UI_Upload,UI_Validation,UI_Fixer,UI_835,UI_Rules,UI_Chat frontendStyle
   class Auth_Service,File_Router,Fix_Router,Rules_Router,AI_Router,Parser_Router apiStyle
