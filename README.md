@@ -162,11 +162,11 @@ flowchart TB
   Val_Filter -->|Statistics<br/>Error Trends| UI_Dashboard
 
   %% Styling
-  classDef frontendStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-  classDef apiStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
-  classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-  classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-  classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+  classDef frontendStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px,color:#000
+  classDef apiStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+  classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+  classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+  classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000
   
   class UI_Dashboard,UI_Upload,UI_Validation,UI_Fixer,UI_835,UI_Rules,UI_Chat frontendStyle
   class Auth_Service,File_Router,Fix_Router,Rules_Router,AI_Router,Parser_Router apiStyle
