@@ -22,116 +22,109 @@ End to end EDI parsing, validation, fixing, and RAG powered explanation for US h
 ## Architecture at a glance
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff', 'fontSize':'22px'}}}%%
-flowchart LR
-  subgraph Frontend["<b>Frontend Layer</b>"]
-    UI_Dashboard["<b>Dashboard</b><br/>Session List | Upload Interface"]
-    UI_Upload["<b>File Upload</b><br/>Drag Drop | Multi-file Support"]
-    UI_Validation["<b>Validation View</b><br/>Error Display | Warning Filters"]
-    UI_Fixer["<b>Fix Assistant</b><br/>Apply Batch Fixes | Preview Changes"]
-    UI_835["<b>835 Dashboard</b><br/>Payment Summary | Claim Details"]
-    UI_Rules["<b>Rules Manager</b><br/>Enable Disable | Custom Preferences"]
-    UI_Chat["<b>Eddie Chat</b><br/>AI Assistant | Context-Aware Help"]
-  end
-
-  subgraph API_Layer["<b>API Layer</b>"]
-    Auth_Service["<b>Auth Service</b><br/>JWT Tokens | User Sessions | Signup Login"]
-    File_Router["<b>File Router</b><br/>Upload Handler | Session Manager | Download Service"]
-    Fix_Router["<b>Fix Router</b><br/>Apply Fixes | Batch Processing | Validation Trigger"]
-    Rules_Router["<b>Rules Router</b><br/>CRUD Operations | Default Reset | User Preferences"]
-    AI_Router["<b>AI Router</b><br/>Question Handler | Segment Explainer | Error Analyzer"]
-    Parser_Router["<b>835 Parser Router</b><br/>Upload 835 | Parse Analyze | Pattern Detection"]
-  end
-
-  subgraph Processing["<b>Processing Engine</b>"]
-    Parser_Main["<b>Parser Service</b><br/>pyx12 Engine | Fallback Parser | Segment Tokenizer"]
-    Parser_Agent["<b>Parser Agent</b><br/>RAG Enrichment | Context Builder | TR3 Lookup"]
-    Val_Structural["<b>Structural Validator</b><br/>Segment Order | Required Elements | Data Types"]
-    Val_Business["<b>Business Rules</b><br/>837 835 834 Logic | Cross-Segment | Amount Checks"]
-    Val_External["<b>External Validator</b><br/>Code Lists | TR3 Reference | CMS Guidelines"]
-    Val_Filter["<b>Rule Filter</b><br/>Apply User Rules | Severity Mapping | Error Deduplication"]
-    Fix_Deterministic["<b>Deterministic Fixer</b><br/>Control Numbers | Envelope Counts | Calculated Fields"]
-    Fix_RAG["<b>RAG-Enhanced Fixer</b><br/>TR3 Citations | Best Practices | Context Suggestions"]
-    Fix_Validator["<b>Fix Validator</b><br/>Pre-Apply Check | Impact Analysis | Conflict Detection"]
-    Report_Builder["<b>Report Builder</b><br/>PDF Generator | JSON MD HTML | Change History | Fix Summary"]
-  end
-
-  subgraph Data_Layer["<b>Data Layer</b>"]
-    MongoDB["<b>MongoDB Collections</b>"]
-    DB_Users[("<b>users</b><br/>Auth Data | Credentials | Preferences")]
-    DB_Sessions[("<b>sessions</b><br/>Upload History | Parsed JSON | Validation State | Fix Reports")]
-    DB_Rules[("<b>rules</b><br/>User Rules | Enabled Disabled | Custom Configs")]
-    MongoDB -.-> DB_Users
-    MongoDB -.-> DB_Sessions
-    MongoDB -.-> DB_Rules
-  end
-
-  subgraph AI_Layer["<b>AI & RAG Layer</b>"]
-    Qdrant["<b>Qdrant Vector DB</b><br/>240054 Embeddings | Similarity 0.3 threshold"]
-    Embeddings["<b>Sentence Transformers</b><br/>all-MiniLM-L6-v2 | 384-dim vectors"]
-    RAG_TR3["<b>TR3 Guides</b><br/>837 835 834 | Segment Specs | Loop Structure"]
-    RAG_CMS["<b>CMS Manuals</b><br/>Guidelines | Compliance Rules | Best Practices"]
-    RAG_Codes["<b>Code Lists</b><br/>CARC RARC | Adjustment Codes | Remark Codes"]
-    Groq["<b>Groq LLM</b><br/>Low Latency | Context Window | Auto Model Select"]
-    RAG_TR3 --> Embeddings
-    RAG_CMS --> Embeddings
-    RAG_Codes --> Embeddings
-    Embeddings --> Qdrant
-  end
-
-  Frontend --> API_Layer
-  UI_Dashboard --> File_Router
-  UI_Upload --> File_Router
-  UI_Validation --> File_Router
-  UI_Fixer --> Fix_Router
-  UI_835 --> Parser_Router
-  UI_Rules --> Rules_Router
-  UI_Chat --> AI_Router
-  UI_Dashboard --> Auth_Service
-  Auth_Service --> DB_Users
-  File_Router --> Parser_Main
-  Parser_Main --> Parser_Agent
-  Parser_Agent --> Qdrant
-  Parser_Agent --> Val_Structural
-  Val_Structural --> Val_Business
-  Val_Business --> Val_External
-  Val_External --> Val_Filter
-  Val_Filter --> Rules_Router
-  Rules_Router --> DB_Rules
-  Val_External --> Qdrant
-  Val_Filter --> Fix_Deterministic
-  Fix_Deterministic --> Fix_RAG
-  Fix_RAG --> Qdrant
-  Fix_RAG --> Fix_Validator
-  Fix_Router --> Fix_Validator
-  Fix_Validator --> Parser_Main
-  Parser_Main --> Val_Structural
-  Fix_Validator --> Report_Builder
-  Report_Builder --> File_Router
-  File_Router --> DB_Sessions
-  Fix_Router --> DB_Sessions
-  Parser_Agent --> DB_Sessions
-  AI_Router --> Groq
-  AI_Router --> Qdrant
-  Groq --> AI_Router
-  Parser_Router --> Parser_Main
-  Parser_Router --> Qdrant
-  Parser_Router --> DB_Sessions
-  UI_Validation --> AI_Router
-  Report_Builder --> DB_Sessions
-  Val_Filter --> UI_Dashboard
-
-  classDef frontendStyle fill:#ffffff,stroke:#0066cc,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
-  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
-  classDef processStyle fill:#ffffff,stroke:#6600cc,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
-  classDef dataStyle fill:#ffffff,stroke:#009933,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
-  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:4px,color:#000000,font-size:22px,font-weight:bold
+%%{init: {'theme':'base', 'themeVariables': { 'background':'#ffffff', 'mainBkg':'#ffffff', 'clusterBkg':'#ffffff', 'fontSize':'32px', 'fontFamily':'Arial'}}}%%
+graph LR
+  UI1["<b>DASHBOARD</b>"]
+  UI2["<b>FILE UPLOAD</b>"]
+  UI3["<b>VALIDATION VIEW</b>"]
+  UI4["<b>FIX ASSISTANT</b>"]
+  UI5["<b>835 DASHBOARD</b>"]
+  UI6["<b>RULES MANAGER</b>"]
+  UI7["<b>EDDIE CHAT</b>"]
   
-  class UI_Dashboard,UI_Upload,UI_Validation,UI_Fixer,UI_835,UI_Rules,UI_Chat frontendStyle
-  class Auth_Service,File_Router,Fix_Router,Rules_Router,AI_Router,Parser_Router apiStyle
-  class Parser_Main,Parser_Agent,Val_Structural,Val_Business,Val_External,Val_Filter,Fix_Deterministic,Fix_RAG,Fix_Validator,Report_Builder processStyle
-  class MongoDB,DB_Users,DB_Sessions,DB_Rules dataStyle
-  class Qdrant,Embeddings,RAG_TR3,RAG_CMS,RAG_Codes,Groq aiStyle
+  A1["<b>AUTH SERVICE</b>"]
+  A2["<b>FILE ROUTER</b>"]
+  A3["<b>FIX ROUTER</b>"]
+  A4["<b>RULES ROUTER</b>"]
+  A5["<b>AI ROUTER</b>"]
+  A6["<b>835 PARSER ROUTER</b>"]
+  
+  P1["<b>PARSER SERVICE</b><br/><b>pyx12 Engine</b>"]
+  P2["<b>PARSER AGENT</b><br/><b>RAG Enrichment</b>"]
+  V1["<b>STRUCTURAL VALIDATOR</b>"]
+  V2["<b>BUSINESS RULES</b>"]
+  V3["<b>EXTERNAL VALIDATOR</b>"]
+  V4["<b>RULE FILTER</b>"]
+  F1["<b>DETERMINISTIC FIXER</b>"]
+  F2["<b>RAG FIXER</b>"]
+  F3["<b>FIX VALIDATOR</b>"]
+  R1["<b>REPORT BUILDER</b>"]
+  
+  DB1[("<b>MONGODB</b>")]
+  DB2[("<b>USERS DB</b>")]
+  DB3[("<b>SESSIONS DB</b>")]
+  DB4[("<b>RULES DB</b>")]
+  
+  AI1["<b>QDRANT VECTOR DB</b><br/><b>240K Embeddings</b>"]
+  AI2["<b>SENTENCE TRANSFORMERS</b>"]
+  AI3["<b>TR3 GUIDES</b>"]
+  AI4["<b>CMS MANUALS</b>"]
+  AI5["<b>CODE LISTS</b>"]
+  AI6["<b>GROQ LLM</b>"]
+  
+  UI1 --> A2
+  UI2 --> A2
+  UI3 --> A2
+  UI4 --> A3
+  UI5 --> A6
+  UI6 --> A4
+  UI7 --> A5
+  UI1 --> A1
+  
+  A1 --> DB2
+  A2 --> P1
+  A3 --> F3
+  A4 --> DB4
+  A5 --> AI6
+  A5 --> AI1
+  A6 --> P1
+  
+  P1 --> P2
+  P2 --> V1
+  P2 --> AI1
+  V1 --> V2
+  V2 --> V3
+  V3 --> V4
+  V3 --> AI1
+  V4 --> A4
+  V4 --> F1
+  
+  F1 --> F2
+  F2 --> F3
+  F2 --> AI1
+  F3 --> P1
+  F3 --> R1
+  
+  R1 --> A2
+  A2 --> DB3
+  A3 --> DB3
+  P2 --> DB3
+  A6 --> DB3
+  
+  AI3 --> AI2
+  AI4 --> AI2
+  AI5 --> AI2
+  AI2 --> AI1
+  AI6 --> A5
+  
+  DB1 -.-> DB2
+  DB1 -.-> DB3
+  DB1 -.-> DB4
+  
+  V4 --> UI3
+  UI3 --> A5
+
+  classDef uiStyle fill:#ffffff,stroke:#0066cc,stroke-width:5px,color:#000000,font-size:32px
+  classDef apiStyle fill:#ffffff,stroke:#ff6600,stroke-width:5px,color:#000000,font-size:32px
+  classDef procStyle fill:#ffffff,stroke:#6600cc,stroke-width:5px,color:#000000,font-size:32px
+  classDef dbStyle fill:#ffffff,stroke:#009933,stroke-width:5px,color:#000000,font-size:32px
+  classDef aiStyle fill:#ffffff,stroke:#cc0066,stroke-width:5px,color:#000000,font-size:32px
+  
+  class UI1,UI2,UI3,UI4,UI5,UI6,UI7 uiStyle
+  class A1,A2,A3,A4,A5,A6 apiStyle
+  class P1,P2,V1,V2,V3,V4,F1,F2,F3,R1 procStyle
+  class DB1,DB2,DB3,DB4 dbStyle
+  class AI1,AI2,AI3,AI4,AI5,AI6 aiStyle
 ```
 
 ## Core workflows
