@@ -114,11 +114,11 @@ graph LR
   V4 --> UI3
   UI3 --> A5
 
-  classDef uiStyle fill:#2d2d2d,stroke:#4a9eff,stroke-width:3px,color:#e0e0e0,font-size:32px
-  classDef apiStyle fill:#2d2d2d,stroke:#9acd32,stroke-width:3px,color:#e0e0e0,font-size:32px
-  classDef procStyle fill:#2d2d2d,stroke:#ffa500,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef uiStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef apiStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef procStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
   classDef dbStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
-  classDef aiStyle fill:#2d2d2d,stroke:#9370db,stroke-width:3px,color:#e0e0e0,font-size:32px
+  classDef aiStyle fill:#2d2d2d,stroke:#8a8a8a,stroke-width:3px,color:#e0e0e0,font-size:32px
   
   class UI1,UI2,UI3,UI4,UI5,UI6,UI7 uiStyle
   class A1,A2,A3,A4,A5,A6 apiStyle
