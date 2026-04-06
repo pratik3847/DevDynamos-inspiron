@@ -60,7 +60,7 @@ flowchart TB
       Fix_Validator["Fix Validator<br/>Pre-Apply Check<br/>Impact Analysis<br/>Conflict Detection"]
     end
     
-    Report_Builder["Report Builder<br/>PDF Generator<br/>JSON/MD/HTML<br/>Change History<br/>Fix Summary"]
+    Report_Builder["Report Builder<br/>PDF Generator<br/>JSON MD HTML<br/>Change History<br/>Fix Summary"]
   end
 
   subgraph Data_Layer["Data Layer"]
@@ -103,11 +103,11 @@ flowchart TB
   %% Frontend to API connections
   UI_Dashboard -->|POST /files/upload<br/>GET /files/sessions| File_Router
   UI_Upload -->|Multipart Form<br/>EDI File Payload| File_Router
-  UI_Validation -->|GET /session/{id}<br/>Filter Params| File_Router
+  UI_Validation -->|GET /session/ID<br/>Filter Params| File_Router
   UI_Fixer -->|POST /fix/apply<br/>POST /fix/apply-batch| Fix_Router
   UI_835 -->|GET /835-dashboard<br/>Payment Summary| Parser_Router
-  UI_Rules -->|GET/PUT /rules<br/>POST /rules/reset| Rules_Router
-  UI_Chat -->|POST /api/ai/eddie-chat<br/>Context + History| AI_Router
+  UI_Rules -->|GET PUT /rules<br/>POST /rules/reset| Rules_Router
+  UI_Chat -->|POST /api/ai/eddie-chat<br/>Context History| AI_Router
 
   %% Auth flows
   UI_Dashboard -->|POST /auth/login<br/>POST /auth/signup| Auth_Service
@@ -140,7 +140,7 @@ flowchart TB
   
   %% Report generation
   Fix_Validator -->|Fix History<br/>Change Log| Report_Builder
-  Report_Builder -->|PDF/JSON/MD/HTML<br/>Download URL| File_Router
+  Report_Builder -->|PDF JSON MD HTML<br/>Download URL| File_Router
   
   %% Session persistence
   File_Router <-->|Save/Load Sessions<br/>Upload State| DB_Sessions
@@ -154,7 +154,7 @@ flowchart TB
   
   Parser_Router -->|835 Parse Request<br/>File Content| Parser_Main
   Parser_Router -->|Pattern Analysis<br/>Claim Aggregation| Qdrant
-  Parser_Router <-->|In-Memory Store<br/>(Demo Mode)| DB_Sessions
+  Parser_Router <-->|In-Memory Store<br/>Demo Mode| DB_Sessions
 
   %% Feedback loops
   UI_Validation -->|User Feedback<br/>Issue Report| AI_Router
